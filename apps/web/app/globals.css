@@ -1,0 +1,25 @@
+/* Tokens first so Tailwind utilities can reference the variables. */
+@import '@counter/tokens/variables.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Money / timestamp utility — every price MUST use this class.
+     Mirrors the rule in @counter/tokens/variables.css for SSR safety. */
+  .font-money,
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+}
