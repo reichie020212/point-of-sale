@@ -14,12 +14,12 @@ A calm, offline-first point-of-sale for small independent shops — cafés, bake
 
 ## Surfaces
 
-| Surface | Where | What |
-|---|---|---|
-| **Mobile** | Android APK + iOS TestFlight | React Native register; offline-first; single-operator |
-| **Dashboard** | `app.counter.app` | Next.js back-office: products, orders, customers, reports, live registers |
-| **Marketing** | `counter.app` | Next.js landing, pricing, downloads (same Next.js app, different route group) |
-| **API** | `api.counter.app` | Fastify backend, Postgres + Redis, sync WebSocket |
+| Surface       | Where                        | What                                                                          |
+| ------------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| **Mobile**    | Android APK + iOS TestFlight | React Native register; offline-first; single-operator                         |
+| **Dashboard** | `app.counter.app`            | Next.js back-office: products, orders, customers, reports, live registers     |
+| **Marketing** | `counter.app`                | Next.js landing, pricing, downloads (same Next.js app, different route group) |
+| **API**       | `api.counter.app`            | Fastify backend, Postgres + Redis, sync WebSocket                             |
 
 ---
 
@@ -86,11 +86,11 @@ pnpm dev         # turbo runs api, web, mobile (Expo) in parallel
 
 ## Pricing tiers
 
-| Tier | Price | Includes |
-|---|---|---|
-| **Free** | Free forever | Mobile app, local-only, 1 device, CSV import/export |
-| **Pro** | $29/mo | + cloud sync, web dashboard, unlimited devices, 1 location, 90-day backups |
-| **Business** | $79/mo | + multi-location, team roles, advanced reports, REST API, webhooks |
+| Tier         | Price        | Includes                                                                   |
+| ------------ | ------------ | -------------------------------------------------------------------------- |
+| **Free**     | Free forever | Mobile app, local-only, 1 device, CSV import/export                        |
+| **Pro**      | $29/mo       | + cloud sync, web dashboard, unlimited devices, 1 location, 90-day backups |
+| **Business** | $79/mo       | + multi-location, team roles, advanced reports, REST API, webhooks         |
 
 Required for Pro: web dashboard sign-in. Required for Business: org with > 1 location or > 5 team members.
 

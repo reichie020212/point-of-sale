@@ -1,0 +1,31 @@
+{
+  "name": "counter",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Counter POS — offline-first point-of-sale (mobile + web + API)",
+  "packageManager": "pnpm@9.0.5",
+  "engines": {
+    "node": ">=20.12.0 <21",
+    "pnpm": ">=9.0.0 <10"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,yml,yaml}\"",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules .turbo"
+  },
+  "devDependencies": {
+    "@counter/eslint-config": "workspace:*",
+    "@counter/prettier-config": "workspace:*",
+    "@counter/tsconfig": "workspace:*",
+    "prettier": "3.2.5",
+    "turbo": "1.13.2",
+    "typescript": "5.4.5"
+  },
+  "prettier": "@counter/prettier-config"
+}

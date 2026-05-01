@@ -13,15 +13,19 @@ Instructions for Claude Code working in this repo. Reads in addition to the user
 ## Repo-specific overrides
 
 ### 1. Do **not** use git worktrees in this repo
+
 The user's global rule mandates worktrees for all work. **This repo opts out.** Commit on the active branch directly. The "always use a worktree" rule does not apply here.
 
 ### 2. Treat `HANDOFF.md` as the spec
+
 HANDOFF defines stack, screens, sync rules, and non-negotiables. The HTML/JSX prototypes win on visual detail; HANDOFF wins on architecture and behavior. If a request contradicts HANDOFF, surface the conflict before implementing.
 
 ### 3. Visual-prototype files are reference, not production
+
 `Counter POS.html`, `Counter Web.html`, `src/*.jsx`, `web/*.jsx`, `shared/*.jsx` are React-via-Babel-standalone prototypes. They are **read-only design source**. Do not edit them as if they were the app. Production code lives under `apps/` and `packages/` (to be scaffolded).
 
 ### 4. Architect / Executor split
+
 For project work in this repo, **Gemini is the Architect** (owns Blueprints) and **Claude is the Executor** (implements Blueprints). When a roadblock requires a design change, re-consult Gemini via `/ask gemini` rather than improvising. Read `GEMINI.md` for the Architect's brief.
 
 ---
@@ -64,13 +68,13 @@ When implementing anything that touches these, default to the mobile prototype's
 
 ## Stack reference (per HANDOFF)
 
-| Surface | Tech |
-|---|---|
-| Mobile | React Native + Expo (bare), TypeScript strict, Zustand, WatermelonDB, Expo Router |
-| Web | Next.js 14 App Router, TypeScript strict, Tailwind, TanStack Table, Recharts |
-| API | Node.js 20 + Fastify, TypeScript strict, Postgres 16, Redis 7, S3-compatible object store |
-| Sync | Custom WebSocket + HTTPS fallback, Lamport-clock per org, delta-CRDT for inventory |
-| Tooling | pnpm 9 workspaces + Turborepo, one ESLint config, one Prettier config, one tsconfig base |
+| Surface | Tech                                                                                      |
+| ------- | ----------------------------------------------------------------------------------------- |
+| Mobile  | React Native + Expo (bare), TypeScript strict, Zustand, WatermelonDB, Expo Router         |
+| Web     | Next.js 14 App Router, TypeScript strict, Tailwind, TanStack Table, Recharts              |
+| API     | Node.js 20 + Fastify, TypeScript strict, Postgres 16, Redis 7, S3-compatible object store |
+| Sync    | Custom WebSocket + HTTPS fallback, Lamport-clock per org, delta-CRDT for inventory        |
+| Tooling | pnpm 9 workspaces + Turborepo, one ESLint config, one Prettier config, one tsconfig base  |
 
 Planned monorepo layout (HANDOFF §6):
 

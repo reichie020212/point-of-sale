@@ -16,17 +16,17 @@ This guide is **forward-looking**. The repo currently contains design references
 
 ### 1.1 Prerequisites
 
-| Tool | Version | Install |
-|---|---|---|
-| Node.js | **20 LTS** | [nodejs.org](https://nodejs.org/) or `nvm install 20` |
-| pnpm | **9.x** | `npm i -g pnpm@9` or `corepack enable && corepack prepare pnpm@latest --activate` |
-| PostgreSQL | **16.x** | `brew install postgresql@16` (macOS) / `apt install postgresql-16` (Debian) |
-| Redis | **7.x** | `brew install redis` / `apt install redis-server` |
-| Watchman | latest | `brew install watchman` (required by React Native on macOS) |
-| Java JDK | **17** | `brew install --cask zulu@17` (Android builds) |
-| Xcode | **15+** | App Store (iOS builds; macOS only) |
-| Android Studio | latest | [developer.android.com/studio](https://developer.android.com/studio) (Android builds) |
-| EAS CLI | latest | `npm i -g eas-cli` (Expo Application Services for mobile builds) |
+| Tool           | Version    | Install                                                                               |
+| -------------- | ---------- | ------------------------------------------------------------------------------------- |
+| Node.js        | **20 LTS** | [nodejs.org](https://nodejs.org/) or `nvm install 20`                                 |
+| pnpm           | **9.x**    | `npm i -g pnpm@9` or `corepack enable && corepack prepare pnpm@latest --activate`     |
+| PostgreSQL     | **16.x**   | `brew install postgresql@16` (macOS) / `apt install postgresql-16` (Debian)           |
+| Redis          | **7.x**    | `brew install redis` / `apt install redis-server`                                     |
+| Watchman       | latest     | `brew install watchman` (required by React Native on macOS)                           |
+| Java JDK       | **17**     | `brew install --cask zulu@17` (Android builds)                                        |
+| Xcode          | **15+**    | App Store (iOS builds; macOS only)                                                    |
+| Android Studio | latest     | [developer.android.com/studio](https://developer.android.com/studio) (Android builds) |
+| EAS CLI        | latest     | `npm i -g eas-cli` (Expo Application Services for mobile builds)                      |
 
 Verify the basics:
 
@@ -78,13 +78,13 @@ pnpm --filter mobile dev          # Expo dev server; press i / a to launch sim
 
 Default ports:
 
-| Service | Port | Notes |
-|---|---|---|
-| API (Fastify) | 4000 | REST + `/sync` WebSocket |
+| Service       | Port | Notes                              |
+| ------------- | ---- | ---------------------------------- |
+| API (Fastify) | 4000 | REST + `/sync` WebSocket           |
 | Web (Next.js) | 3000 | Marketing + dashboard route groups |
-| Postgres | 5432 | DB name `counter_dev` |
-| Redis | 6379 | pub/sub + rate limiting |
-| Expo Metro | 8081 | Mobile bundler |
+| Postgres      | 5432 | DB name `counter_dev`              |
+| Redis         | 6379 | pub/sub + rate limiting            |
+| Expo Metro    | 8081 | Mobile bundler                     |
 
 ### 1.4 Object storage for local dev
 
@@ -234,11 +234,11 @@ In Vercel project settings, attach domains:
 
 ### 2.7 DNS — Cloudflare
 
-| Record | Target |
-|---|---|
-| `counter.app` (A/CNAME) | Vercel |
-| `app.counter.app` (CNAME) | Vercel |
-| `api.counter.app` (CNAME) | Fly.io app |
+| Record                     | Target                                      |
+| -------------------------- | ------------------------------------------- |
+| `counter.app` (A/CNAME)    | Vercel                                      |
+| `app.counter.app` (CNAME)  | Vercel                                      |
+| `api.counter.app` (CNAME)  | Fly.io app                                  |
 | `sync.counter.app` (CNAME) | Fly.io app (alias of `api`, optional split) |
 
 Enable proxying for `counter.app` and `app.counter.app`. **Disable proxying** (DNS-only) for `api.counter.app` if you want WebSockets to bypass Cloudflare's WS quirks; otherwise enable WebSocket support in the Cloudflare zone settings.
@@ -269,12 +269,12 @@ eas build --platform ios --profile production           # TestFlight + App Store
 
 ### 2.9 Observability
 
-| Concern | Tool |
-|---|---|
-| Error tracking | Sentry (api + web + mobile) |
-| Product analytics | PostHog |
-| Logs | Fly logs → Logtail / Axiom (long-term retention) |
-| Uptime | Better Uptime / Cronitor probing `/healthz` and the WebSocket handshake |
+| Concern           | Tool                                                                    |
+| ----------------- | ----------------------------------------------------------------------- |
+| Error tracking    | Sentry (api + web + mobile)                                             |
+| Product analytics | PostHog                                                                 |
+| Logs              | Fly logs → Logtail / Axiom (long-term retention)                        |
+| Uptime            | Better Uptime / Cronitor probing `/healthz` and the WebSocket handshake |
 
 ### 2.10 Stripe (billing)
 
@@ -287,11 +287,11 @@ eas build --platform ios --profile production           # TestFlight + App Store
 
 ## 3 · Environments
 
-| Environment | API | Web | DB | Redis | R2 |
-|---|---|---|---|---|---|
-| `local` | localhost:4000 | localhost:3000 | local Postgres | local Redis | MinIO |
-| `preview` | Fly preview app | Vercel preview | Neon dev branch | Upstash dev | R2 dev bucket |
-| `production` | Fly prod (US/EU) | Vercel prod | Neon prod (US/EU) | Upstash prod | R2 prod |
+| Environment  | API              | Web            | DB                | Redis        | R2            |
+| ------------ | ---------------- | -------------- | ----------------- | ------------ | ------------- |
+| `local`      | localhost:4000   | localhost:3000 | local Postgres    | local Redis  | MinIO         |
+| `preview`    | Fly preview app  | Vercel preview | Neon dev branch   | Upstash dev  | R2 dev bucket |
+| `production` | Fly prod (US/EU) | Vercel prod    | Neon prod (US/EU) | Upstash prod | R2 prod       |
 
 Branch convention (planned):
 

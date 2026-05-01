@@ -44,13 +44,13 @@ These constrain Claude's execution; relevant when you design a Blueprint:
 
 ## Stack snapshot (from HANDOFF)
 
-| Surface | Tech |
-|---|---|
-| Mobile | React Native + Expo (bare), TypeScript strict, Zustand, WatermelonDB, Expo Router, react-native-ble-plx, expo-barcode-scanner |
-| Web | Next.js 14 App Router, TypeScript strict, Tailwind, TanStack Table, Recharts |
-| API | Node.js 20 + Fastify, TypeScript strict, Postgres 16, Redis 7, S3-compatible store |
-| Sync | Custom WebSocket primary + HTTPS long-poll fallback, Lamport-clock versioning, delta-CRDT for inventory |
-| Tooling | pnpm 9 workspaces + Turborepo |
+| Surface | Tech                                                                                                                          |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Mobile  | React Native + Expo (bare), TypeScript strict, Zustand, WatermelonDB, Expo Router, react-native-ble-plx, expo-barcode-scanner |
+| Web     | Next.js 14 App Router, TypeScript strict, Tailwind, TanStack Table, Recharts                                                  |
+| API     | Node.js 20 + Fastify, TypeScript strict, Postgres 16, Redis 7, S3-compatible store                                            |
+| Sync    | Custom WebSocket primary + HTTPS long-poll fallback, Lamport-clock versioning, delta-CRDT for inventory                       |
+| Tooling | pnpm 9 workspaces + Turborepo                                                                                                 |
 
 Planned layout:
 

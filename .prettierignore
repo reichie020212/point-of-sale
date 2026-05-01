@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+coverage/
+pnpm-lock.yaml
+
+# Design prototypes — read-only references
+src/
+web/
+shared/
+Counter POS.html
+Counter Web.html
+
+# Spec — imported as-is, do not reformat
+HANDOFF.md

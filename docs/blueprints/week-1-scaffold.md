@@ -52,6 +52,7 @@
 The tokens package will be the "law" for visuals.
 
 ### File Structure
+
 - `src/colors.ts` — OKLCH values with hex fallbacks
 - `src/typography.ts` — Inter, JetBrains Mono, Fraunces definitions
 - `src/index.ts` — unified export
@@ -59,6 +60,7 @@ The tokens package will be the "law" for visuals.
 - `src/platforms/native.ts` — RN-optimized theme object
 
 ### Typography Rules
+
 - **Money / timestamps**: `font-family: 'JetBrains Mono', monospace;`
 - **UI / body**: `font-family: 'Inter', sans-serif;`
 - **Display**: `font-family: 'Fraunces', serif;`
@@ -76,9 +78,10 @@ The tokens package will be the "law" for visuals.
 **Auth choice**: **Clerk**. Provides the fastest path to robust multi-tenancy (Organizations), which is core to Counter.
 
 ### Session / Device Token Integration
+
 - Clerk JWT template: `counter-sync-v1`
 - Custom claims: `{ "org_id": "{{org.id}}", "device_id": "{{session.id}}" }`
-- Rationale: For Week 1, the web browser session *is* the device. In Week 5 / 6, an explicit `devices` table for paired mobile hardware will be added.
+- Rationale: For Week 1, the web browser session _is_ the device. In Week 5 / 6, an explicit `devices` table for paired mobile hardware will be added.
 
 ### DB Schema (Postgres 16 + Drizzle)
 
@@ -95,7 +98,7 @@ export const organizations = pgTable('organizations', {
   clerkOrgId: text('clerk_org_id').notNull().unique(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
-  region: region('region').notNull(),  // HANDOFF §5
+  region: region('region').notNull(), // HANDOFF §5
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -112,6 +115,7 @@ export const users = pgTable('users', {
 ```
 
 ### API Endpoints
+
 - `POST /api/v1/auth/sync` — sync Clerk metadata with local DB on login (webhook fallback)
 - `GET /api/v1/orgs` — list user organizations
 - `POST /api/v1/orgs` — create organization with region pinning
