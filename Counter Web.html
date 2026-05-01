@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Counter · Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet"/>
+  <style>
+    html, body, #root { height: 100%; margin: 0; }
+    body { background: #F5F2EC; font-family: "Inter", system-ui, sans-serif; color: #161615; }
+    * { box-sizing: border-box; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="web/tokens.jsx"></script>
+  <script type="text/babel" src="shared/developer.jsx"></script>
+  <script type="text/babel" src="web/landing.jsx"></script>
+  <script type="text/babel" src="web/shell.jsx"></script>
+  <script type="text/babel" src="web/dash_home.jsx"></script>
+  <script type="text/babel" src="web/dash_screens.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const SECTIONS = [
+      { id: 'landing',    label: 'Landing page' },
+      { id: 'dashboard',  label: 'Dashboard' },
+      { id: 'products',   label: 'Products' },
+      { id: 'registers',  label: 'Registers · Sync' },
+    ];
+
+    function App() {
+      const t = WebTokens();
+      const [section, setSection] = useState(() => localStorage.getItem('counter-web-section') || 'landing');
+      useEffect(() => { localStorage.setItem('counter-web-section', section); }, [section]);
+
+      const renderBody = () => {
+        if (section === 'landing') return <Landing t={t} onEnterApp={() => setSection('dashboard')}/>;
+        if (section === 'dashboard') return <DashShell t={t} active="dashboard" onNav={setSection}><DashHome t={t}/></DashShell>;
+        if (section === 'products')  return <DashShell t={t} active="products" onNav={setSection}><DashProducts t={t}/></DashShell>;
+        if (section === 'registers') return <DashShell t={t} active="registers" onNav={setSection}><DashRegisters t={t}/></DashShell>;
+        return null;
+      };
+
+      return (
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }} data-screen-label={`Web · ${section}`}>
+          <Switcher t={t} section={section} setSection={setSection}/>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: t.bg }}>
+            {renderBody()}
+          </div>
+        </div>
+      );
+    }
+
+    function Switcher({ t, section, setSection }) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 16px', background: '#161615', color: '#F5F2EC',
+          borderBottom: '0.5px solid rgba(255,255,255,0.1)',
+        }}>
+          <div style={{ fontFamily: t.fontMono, fontSize: 10, letterSpacing: 1.5, fontWeight: 700, color: 'rgba(245,242,236,0.5)', marginRight: 8 }}>
+            COUNTER · WEB PREVIEW
+          </div>
+          {SECTIONS.map(s => (
+            <button key={s.id} onClick={() => setSection(s.id)} style={{
+              padding: '6px 12px', borderRadius: 7, border: 'none',
+              background: section === s.id ? t.accent : 'rgba(255,255,255,0.08)',
+              color: section === s.id ? '#1a1a1a' : '#F5F2EC',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}>{s.label}</button>
+          ))}
+          <div style={{ flex: 1 }}/>
+          <div style={{ fontFamily: t.fontMono, fontSize: 10, color: 'rgba(245,242,236,0.4)' }}>
+            app.counter.app
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
