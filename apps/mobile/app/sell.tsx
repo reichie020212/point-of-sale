@@ -1,9 +1,9 @@
 /**
  * Catalog / sell screen.
  *
- * M5: pulls products + variants from the API and renders a tap-to-add
- * grid. Tapping a variant adds it to the in-memory cart. M6 swaps
- * the data source to WatermelonDB so this works offline.
+ * Reads from the local WatermelonDB via the reactive `useCatalog`
+ * hook; the sync engine refills it from the server in the background.
+ * No network call sits between a tap and a cart add.
  */
 import { nativeTheme } from '@counter/tokens/native';
 import { Link, router } from 'expo-router';
@@ -14,22 +14,23 @@ import { useCatalog, type CatalogEntry } from '../src/hooks/useProducts';
 import { useCart } from '../src/state/cart';
 
 export default function SellScreen() {
-  const { entries, error, loading } = useCatalog();
+  const { entries, loading } = useCatalog();
   const subtotal = useCart((s) => s.subtotalCents());
   const lineCount = useCart((s) => s.lines.reduce((n, l) => n + l.qty, 0));
   const add = useCart((s) => s.add);
 
   return (
     <View style={styles.container}>
-      {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-          <Text style={styles.errorHint}>
-            Set the dev token in Settings or run `pnpm --filter @counter/api dev`.
+      {loading ? (
+        <ActivityIndicator color={nativeTheme.colors.ink} />
+      ) : entries.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyText}>No products yet</Text>
+          <Text style={styles.emptyHint}>
+            Sync will populate the catalog. Add products from the web dashboard, or wait
+            for the next pull.
           </Text>
         </View>
-      ) : loading ? (
-        <ActivityIndicator color={nativeTheme.colors.ink} />
       ) : (
         <FlatList
           data={entries}
@@ -97,15 +98,15 @@ function ProductTile({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: nativeTheme.colors.bg, padding: 16 },
-  errorBox: {
+  emptyBox: {
     padding: 16,
     backgroundColor: nativeTheme.colors.surface,
-    borderColor: nativeTheme.colors.bad,
+    borderColor: nativeTheme.colors.line,
     borderWidth: 1,
     borderRadius: 12,
   },
-  errorText: { color: nativeTheme.colors.bad, fontSize: 14, fontWeight: '600' },
-  errorHint: { color: nativeTheme.colors.ink3, fontSize: 12, marginTop: 4 },
+  emptyText: { color: nativeTheme.colors.ink, fontSize: 14, fontWeight: '600' },
+  emptyHint: { color: nativeTheme.colors.ink3, fontSize: 12, marginTop: 4 },
   tile: {
     flex: 1,
     backgroundColor: nativeTheme.colors.surface,

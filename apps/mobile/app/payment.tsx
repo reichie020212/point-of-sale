@@ -22,6 +22,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Money } from '../src/components/Money';
+import { database } from '../src/db';
 import { useCart } from '../src/state/cart';
 import { useLastSale } from '../src/state/last-sale';
 import { enqueue } from '../src/sync/queue';
@@ -83,9 +84,53 @@ export default function PaymentScreen() {
       }));
       setLastSale({ order, items });
 
-      // Enqueue an order push for sync. The current queue is the M6
-      // in-memory stub; durable persistence lands with Watermelon
-      // model classes.
+      // Optimistic local persistence: write the finalized order +
+      // items to Watermelon so the orders screen observer fires
+      // immediately. The server's later PULL emit will reconcile via
+      // server_id (clientOpId is also the canonical order id).
+      await database.write(async () => {
+        const orderCol = database.get('orders');
+        const itemsCol = database.get('order_items');
+        await orderCol.create((row) => {
+          const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
+          raw.server_id = orderId;
+          raw.client_op_id = clientOpId;
+          raw.org_id = '';
+          raw.customer_id = customerId;
+          raw.shift_id = null;
+          raw.device_id = '';
+          raw.status = 'completed';
+          raw.payment_method = 'cash';
+          raw.subtotal_cents = subtotal;
+          raw.tax_cents = taxCents;
+          raw.tip_cents = tipCents;
+          raw.discount_cents = discountCents;
+          raw.total_cents = totalCents;
+          raw.created_at = Date.now();
+          raw.synced_at = null;
+        });
+        for (const line of lines) {
+          const modSum = line.modifiers.reduce((m, x) => m + x.priceCents, 0);
+          await itemsCol.create((row) => {
+            const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
+            raw.server_id = `${orderId}_${line.lineId}`;
+            raw.org_id = '';
+            raw.order_id = orderId;
+            raw.variant_id = line.variantId;
+            raw.name_snapshot = line.nameSnapshot;
+            raw.qty = line.qty;
+            raw.unit_price_cents = line.unitPriceCents;
+            raw.subtotal_cents = line.qty * (line.unitPriceCents + modSum);
+            raw.modifiers_json =
+              line.modifiers.length > 0 ? JSON.stringify(line.modifiers) : null;
+          });
+        }
+      });
+
+      // Enqueue an order push for the server. The sync engine drains
+      // this queue, the server transactionally writes the order, then
+      // emits an EVENT that fans out to other devices and reconciles
+      // the local row above via the PULL upsert.
       await enqueue({
         clientOpId,
         table: 'orders',
