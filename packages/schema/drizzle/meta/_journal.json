@@ -8,6 +8,13 @@
       "when": 1777638342669,
       "tag": "0000_special_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777639748553,
+      "tag": "0001_silent_starbolt",
+      "breakpoints": true
     }
   ]
 }

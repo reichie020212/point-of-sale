@@ -10,7 +10,7 @@
  * deferred operation (TODO(open-question): region migration policy).
  */
 import { organizations, users, type Region } from '@counter/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getDb } from '../db.js';
@@ -38,9 +38,10 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
     const clerkOrgIds = memberships.data.map((m) => m.organization.id);
     if (clerkOrgIds.length === 0) return { orgs: [] };
 
-    const orgs = await db.query.organizations.findMany({
-      where: (o, { inArray }) => inArray(o.clerkOrgId, clerkOrgIds),
-    });
+    const orgs = await db
+      .select()
+      .from(organizations)
+      .where(inArray(organizations.clerkOrgId, clerkOrgIds));
     return { orgs };
   });
 

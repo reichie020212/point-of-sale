@@ -8,7 +8,13 @@ import type { Config } from 'drizzle-kit';
 const databaseUrl = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/counter_dev';
 
 export default {
-  schema: './src/auth.ts',
+  schema: [
+    './src/auth.ts',
+    './src/catalog.ts',
+    './src/customers.ts',
+    './src/devices.ts',
+    './src/sales.ts',
+  ],
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: { url: databaseUrl },
