@@ -6,7 +6,23 @@
  *   2. init DB connection (postgres-js + Drizzle)
  *   3. register CORS, Clerk auth plugin, and route plugins
  *   4. listen
+ *
+ * BigInt serialization: Drizzle returns Postgres bigint columns as
+ * native JS BigInt (e.g. `version`, `current_version`). JSON.stringify
+ * throws on bigint by default; we install a global `toJSON` returning
+ * the decimal string. Wire compatibility — clients already parse
+ * cursors as decimal strings (see @counter/sync VersionString).
  */
+declare global {
+  interface BigInt {
+    toJSON(): string;
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+(BigInt.prototype as any).toJSON = function toJSON(this: bigint): string {
+  return this.toString();
+};
+
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import Fastify from 'fastify';

@@ -15,8 +15,9 @@ import * as catalog from './catalog';
 import * as customers from './customers';
 import * as devices from './devices';
 import * as sales from './sales';
+import * as sync from './sync';
 
-const schema = { ...auth, ...catalog, ...customers, ...devices, ...sales };
+const schema = { ...auth, ...catalog, ...customers, ...devices, ...sales, ...sync };
 
 export type Db = ReturnType<typeof drizzle<typeof schema>>;
 

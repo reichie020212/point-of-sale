@@ -14,6 +14,7 @@ export default {
     './src/customers.ts',
     './src/devices.ts',
     './src/sales.ts',
+    './src/sync.ts',
   ],
   out: './drizzle',
   dialect: 'postgresql',

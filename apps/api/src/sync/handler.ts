@@ -34,6 +34,8 @@ import { and, asc, eq, gt } from 'drizzle-orm';
 import { getActiveOrg } from '../auth/org.js';
 import { getDb } from '../db.js';
 
+import { processPush } from './service.js';
+
 import type { Broker } from './pubsub.js';
 import type { Config } from '../config.js';
 import type { FastifyInstance } from 'fastify';
@@ -191,19 +193,43 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
           );
           return;
         }
-        // TODO(M6/M9): full PUSH implementation lands with the mobile
-        // sync client + cash payment flow. For now, ack each op with
-        // ok:false so clients know to retry once the server is ready.
-        ws.send(
-          encodeServerMessage({
-            type: 'ack',
-            results: parsed.ops.map((op: PushOp) => ({
+        try {
+          const results = await processPush({
+            db: getDb(),
+            orgId: org.id,
+            ops: parsed.ops.map((op: PushOp) => ({
               clientOpId: op.clientOpId,
-              ok: false,
-              error: 'push_not_implemented',
+              table: op.table,
+              data: op.data,
+              asDelta: op.asDelta,
             })),
-          }),
-        );
+          });
+          ws.send(encodeServerMessage({ type: 'ack', results }));
+          for (const result of results) {
+            if (!result.ok || !result.id || !result.version) continue;
+            const op = parsed.ops.find((o: PushOp) => o.clientOpId === result.clientOpId);
+            if (!op) continue;
+            await deps.broker.publish(org.id, {
+              type: 'record_updated',
+              orgId: org.id,
+              table: op.table,
+              id: result.id,
+              version: result.version,
+            });
+          }
+        } catch (err) {
+          log.error({ err }, 'push processing failed');
+          ws.send(
+            encodeServerMessage({
+              type: 'ack',
+              results: parsed.ops.map((op: PushOp) => ({
+                clientOpId: op.clientOpId,
+                ok: false,
+                error: err instanceof Error ? err.message : 'server_error',
+              })),
+            }),
+          );
+        }
       }
     });
   });

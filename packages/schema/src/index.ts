@@ -67,5 +67,12 @@ export {
   type PaymentMethod,
 } from './sales';
 
+// Sync engine plumbing
+export {
+  syncIdempotency,
+  type SyncIdempotency,
+  type NewSyncIdempotency,
+} from './sync';
+
 // DB factory
 export { createDb, type Db, type CreateDbOptions } from './db';

@@ -15,7 +15,7 @@
  * Week 1 JWT template fakes "session = device" via the Clerk session id.
  */
 import { sql } from 'drizzle-orm';
-import { index, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, index, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const region = pgEnum('region', ['US', 'EU']);
 export const tier = pgEnum('tier', ['free', 'pro', 'business']);
@@ -31,6 +31,15 @@ export const organizations = pgTable(
     slug: text('slug').notNull().unique(),
     region: region('region').notNull(),
     tier: tier('tier').notNull().default('free'),
+    /**
+     * Per-org Lamport clock. Every PUSH batch increments this once and
+     * stamps the new value onto every row written in the batch. Sync
+     * pulls compare row.version > client.cursor, so monotonic per-org
+     * is the only invariant we rely on (gaps allowed).
+     */
+    currentVersion: bigint('current_version', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
     createdAt: timestamp('created_at', { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
