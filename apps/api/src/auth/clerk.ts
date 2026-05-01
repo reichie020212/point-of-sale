@@ -52,6 +52,24 @@ export const clerkAuthPlugin = fp<ClerkPluginOptions>(async (app, opts) => {
       return;
     }
 
+    // Test-only bypass (master Blueprint M14): when NODE_ENV=test and the
+    // bearer matches TEST_BEARER, skip JWKS verification and synthesize an
+    // auth object from TEST_USER_ID / TEST_ORG_ID. Production rejects
+    // these env vars at config load.
+    if (
+      config.NODE_ENV === 'test' &&
+      process.env.TEST_BEARER &&
+      token === process.env.TEST_BEARER
+    ) {
+      request.auth = {
+        userId: process.env.TEST_USER_ID ?? 'user_test',
+        sessionId: 'session_test',
+        orgId: process.env.TEST_CLERK_ORG_ID ?? null,
+        deviceId: 'device_test',
+      };
+      return;
+    }
+
     try {
       const verified = await verifyToken(token, { secretKey: config.CLERK_SECRET_KEY });
       const sessionId = verified.sid;

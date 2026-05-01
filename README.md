@@ -8,7 +8,7 @@ A calm, offline-first point-of-sale for small independent shops — cafés, bake
 
 ## Status
 
-**Week 1 scaffold landed.** Monorepo, design tokens, schema, API, and web are wired up; auth + org creation work end-to-end. Mobile is empty until Week 2. See [`HANDOFF.md`](./HANDOFF.md) §7 for the full build order and [`docs/blueprints/week-1-scaffold.md`](./docs/blueprints/week-1-scaffold.md) for the executed plan.
+**W2–W8 master push landed.** Schema expansion, products + categories CRUD, sync (server + mobile client), mobile catalog/cart/cash checkout, web dashboards (products / customers / registers), KPI reports + charts, tier gating, devices API, and CSV import/export are all in place. See [`docs/blueprints/master-w2-w8.md`](./docs/blueprints/master-w2-w8.md) for the executed plan and [`docs/manual-test-plan.md`](./docs/manual-test-plan.md) for the human-driven verification gate (HANDOFF §4 W3 acceptance test). The W1 scaffold ([`docs/blueprints/week-1-scaffold.md`](./docs/blueprints/week-1-scaffold.md)) is the prerequisite.
 
 ---
 
