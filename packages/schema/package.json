@@ -1,0 +1,43 @@
+{
+  "name": "@counter/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Drizzle schema + Postgres connection factory shared across api, future workers, and migration tooling.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./db": {
+      "types": "./dist/db.d.ts",
+      "import": "./dist/db.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "drizzle", "drizzle.config.ts"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
+    "db:push": "drizzle-kit push --config=drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.33.0",
+    "postgres": "3.4.4"
+  },
+  "devDependencies": {
+    "@counter/eslint-config": "workspace:*",
+    "@counter/tsconfig": "workspace:*",
+    "@types/node": "20.12.7",
+    "drizzle-kit": "0.24.2",
+    "eslint": "8.57.0",
+    "typescript": "5.4.5"
+  }
+}
