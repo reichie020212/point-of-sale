@@ -16,6 +16,7 @@ import { loadConfig } from './config.js';
 import { initDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { categoryRoutes } from './routes/categories.js';
+import { customerRoutes } from './routes/customers.js';
 import { healthRoutes } from './routes/health.js';
 import { orgRoutes } from './routes/orgs.js';
 import { productRoutes } from './routes/products.js';
@@ -54,6 +55,7 @@ export async function buildServer() {
   await app.register(orgRoutes);
   await app.register(categoryRoutes);
   await app.register(productRoutes);
+  await app.register(customerRoutes);
   registerSyncHandler(app, { config });
 
   app.setErrorHandler((err, _req, reply) => {
