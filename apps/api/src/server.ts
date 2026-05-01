@@ -18,7 +18,9 @@ import { authRoutes } from './routes/auth.js';
 import { categoryRoutes } from './routes/categories.js';
 import { customerRoutes } from './routes/customers.js';
 import { deviceRoutes } from './routes/devices.js';
+import { exportRoutes } from './routes/exports.js';
 import { healthRoutes } from './routes/health.js';
+import { importRoutes } from './routes/imports.js';
 import { orgRoutes } from './routes/orgs.js';
 import { productRoutes } from './routes/products.js';
 import { reportRoutes } from './routes/reports.js';
@@ -60,6 +62,8 @@ export async function buildServer() {
   await app.register(customerRoutes);
   await app.register(deviceRoutes);
   await app.register(reportRoutes);
+  await app.register(importRoutes);
+  await app.register(exportRoutes);
   registerSyncHandler(app, { config });
 
   app.setErrorHandler((err, _req, reply) => {

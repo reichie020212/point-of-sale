@@ -2,6 +2,7 @@
  * Customers dashboard — search + list. Detail + order history land
  * once /api/v1/orders is exposed (post-M14).
  */
+import { ExportButton } from '../../../../components/ExportButton';
 import { api } from '../../../../lib/api';
 
 interface CustomerRow {
@@ -40,20 +41,23 @@ export default async function CustomersPage({
             {q && ` matching “${q}”`}
           </p>
         </div>
-        <form className="flex gap-2">
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search name, email, phone…"
-            className="rounded-lg border border-line-2 bg-surface px-3 py-2 text-sm text-ink"
-          />
-          <button
-            type="submit"
-            className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-bg hover:bg-ink-2"
-          >
-            Search
-          </button>
-        </form>
+        <div className="flex items-center gap-3">
+          <form className="flex gap-2">
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Search name, email, phone…"
+              className="rounded-lg border border-line-2 bg-surface px-3 py-2 text-sm text-ink"
+            />
+            <button
+              type="submit"
+              className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-bg hover:bg-ink-2"
+            >
+              Search
+            </button>
+          </form>
+          <ExportButton entity="customers" />
+        </div>
       </header>
 
       {error ? (

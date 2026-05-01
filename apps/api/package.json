@@ -20,6 +20,8 @@
     "@counter/sync": "workspace:*",
     "@fastify/cors": "9.0.1",
     "@fastify/websocket": "10.0.1",
+    "csv-parse": "5.5.6",
+    "csv-stringify": "6.5.1",
     "drizzle-orm": "0.33.0",
     "fastify": "4.28.1",
     "fastify-plugin": "4.5.1",
