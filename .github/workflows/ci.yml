@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.12.2'
+  PNPM_VERSION: '9.0.5'
+  # Placeholder values so `next build` and the API config loader pass.
+  # Real auth flows are exercised in the W2+ e2e suite, not in CI.
+  CLERK_SECRET_KEY: sk_test_placeholder_for_ci
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder_for_ci
+  CLERK_PUBLISHABLE_KEY: pk_test_placeholder_for_ci
+  DATABASE_URL: postgresql://localhost:5432/counter_dev
+  NEXT_PUBLIC_API_URL: http://localhost:4000
+
+jobs:
+  verify:
+    name: Lint · Typecheck · Build · Token discipline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages (tokens, schema)
+        run: pnpm build --filter @counter/tokens --filter @counter/schema
+
+      - name: Verify token discipline (no-hardcoded-colors fixtures)
+        run: pnpm --filter @counter/eslint-config lint:fixtures
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build all
+        run: pnpm build
+
+      - name: API smoke tests
+        run: pnpm --filter @counter/api test

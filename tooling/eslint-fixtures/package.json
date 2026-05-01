@@ -1,0 +1,12 @@
+{
+  "name": "@counter/eslint-fixtures",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture files asserted against the @counter/eslint-config color rule. Lives in its own package so the test cases can depend on @counter/tokens without creating a cycle with @counter/eslint-config.",
+  "files": [
+    "__fixtures__"
+  ],
+  "devDependencies": {
+    "@counter/tokens": "workspace:*"
+  }
+}

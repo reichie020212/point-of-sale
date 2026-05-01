@@ -8,7 +8,7 @@ A calm, offline-first point-of-sale for small independent shops — cafés, bake
 
 ## Status
 
-**Design phase.** The repo currently contains the engineering brief and design prototypes. Production code (`apps/`, `packages/`) is being scaffolded — see [`HANDOFF.md`](./HANDOFF.md) §7 for the build order.
+**Week 1 scaffold landed.** Monorepo, design tokens, schema, API, and web are wired up; auth + org creation work end-to-end. Mobile is empty until Week 2. See [`HANDOFF.md`](./HANDOFF.md) §7 for the full build order and [`docs/blueprints/week-1-scaffold.md`](./docs/blueprints/week-1-scaffold.md) for the executed plan.
 
 ---
 
@@ -37,49 +37,61 @@ Full architecture, screens, sync rules, and non-negotiables: **[`HANDOFF.md`](./
 
 ## Repo layout
 
-Today the repo holds design references only:
-
 ```
 .
-├── HANDOFF.md             ← engineering spec (the source of truth)
-├── Counter POS.html       ← mobile prototype (design reference)
-├── Counter Web.html       ← dashboard + marketing prototype
-├── src/                   ← mobile JSX prototype components
-├── web/                   ← web JSX prototype components
-├── shared/                ← shared JSX prototype components
-├── CLAUDE.md              ← Claude Code agent instructions
-├── GEMINI.md              ← Gemini (Architect) agent brief
-├── DEPLOY.md              ← local + production setup guide
-└── README.md              ← this file
-```
-
-Planned production layout (HANDOFF §6):
-
-```
-apps/
-├── mobile/                React Native
-├── web/                   Next.js (marketing + dashboard)
-└── api/                   Fastify backend
-packages/
-├── tokens/                Design tokens (TS + CSS + RN variants)
-├── ui-web/                Shared web components
-├── ui-mobile/             Shared RN components
-├── sync/                  Sync engine
-├── schema/                Zod schemas + TypeScript types
-└── utils/                 Money, time, receipt formatting
-tooling/                   ESLint, tsconfig, Prettier, CI
+├── HANDOFF.md                       ← engineering spec (source of truth)
+├── docs/blueprints/                 ← architect (Gemini) Blueprints, week by week
+├── Counter POS.html, Counter Web.html ← design prototypes (read-only references)
+├── src/, web/, shared/              ← JSX prototype components (read-only)
+│
+├── apps/
+│   ├── api/                         ← Fastify backend (Node 20)        ✓ W1
+│   ├── web/                         ← Next.js 14 App Router            ✓ W1
+│   └── mobile/                      ← React Native + Expo              · W2+
+├── packages/
+│   ├── tokens/                      ← OKLCH palette + typography       ✓ W1
+│   ├── schema/                      ← Drizzle + Postgres definitions   ✓ W1
+│   ├── sync/                        ← Sync engine                      · W3
+│   ├── ui-web/                      ← shared React components          · W2
+│   ├── ui-mobile/                   ← shared RN components             · W2
+│   └── utils/                       ← money, time, receipt formatting  · W2
+├── tooling/
+│   ├── eslint/                      ← shared ESLint config + token rule
+│   ├── eslint-fixtures/             ← passing/failing color-rule fixtures
+│   ├── tsconfig/                    ← shared TS configs
+│   └── prettier/                    ← shared Prettier config
+│
+├── .github/workflows/ci.yml         ← lint · typecheck · build · fixtures · API smoke
+├── CLAUDE.md, GEMINI.md             ← agent instructions
+├── DEPLOY.md                        ← local + production setup
+└── README.md                        ← this file
 ```
 
 ---
 
 ## Quickstart
 
-See **[`DEPLOY.md`](./DEPLOY.md)** for local development setup and production deployment. Once the monorepo is scaffolded, the local loop will be:
+See **[`DEPLOY.md`](./DEPLOY.md)** for the full local + production setup. Minimum to get the W1 stack running:
 
 ```bash
+# Prereqs: Node 20 LTS, pnpm 9, Postgres 16 (locally), a Clerk dev project.
 pnpm install
-pnpm db:setup    # provisions Postgres + Redis (local services)
-pnpm dev         # turbo runs api, web, mobile (Expo) in parallel
+cp apps/api/.env.example apps/api/.env       # fill DATABASE_URL + Clerk keys
+cp apps/web/.env.example apps/web/.env       # fill Clerk publishable + secret keys
+createdb counter_dev
+DATABASE_URL=postgresql://localhost:5432/counter_dev pnpm --filter @counter/schema db:migrate
+pnpm dev                                     # api on :4000, web on :3000
+```
+
+Common scripts (run from the repo root):
+
+```bash
+pnpm lint                                    # ESLint across all workspaces
+pnpm typecheck                               # tsc --noEmit, every workspace
+pnpm build                                   # turbo build (with cache)
+pnpm format                                  # Prettier write
+pnpm --filter @counter/eslint-config lint:fixtures   # token discipline check
+pnpm --filter @counter/api test              # API smoke tests
 ```
 
 ---

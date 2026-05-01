@@ -1,6 +1,6 @@
 # Week 1 Blueprint: Monorepo Scaffold, Tokens, and Auth
 
-**Status**: Approved — execution in progress
+**Status**: Completed 2026-05-01 — see commit graph from `7e500b0` (init scaffold) to the CI workflow commit.
 **Context**: HANDOFF §7 Item 1
 **Architect**: Gemini
 **Executor**: Claude

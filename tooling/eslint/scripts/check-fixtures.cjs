@@ -14,12 +14,13 @@
 const path = require('node:path');
 const { ESLint } = require('eslint');
 
-const ROOT = path.resolve(__dirname, '..');
-const PASSING = path.join(ROOT, '__fixtures__', 'passing.ts');
-const FAILING = path.join(ROOT, '__fixtures__', 'failing.ts');
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const FIXTURES = path.join(REPO_ROOT, 'tooling', 'eslint-fixtures', '__fixtures__');
+const PASSING = path.join(FIXTURES, 'passing.ts');
+const FAILING = path.join(FIXTURES, 'failing.ts');
 
 async function lint(file) {
-  const eslint = new ESLint({ cwd: path.resolve(ROOT, '..', '..') });
+  const eslint = new ESLint({ cwd: REPO_ROOT });
   const results = await eslint.lintFiles([file]);
   return results[0] || { messages: [], errorCount: 0, warningCount: 0 };
 }
