@@ -21,6 +21,7 @@ import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { requireActiveOrg } from '../auth/org.js';
+import { requireTier } from '../auth/tier.js';
 import { getDb } from '../db.js';
 
 import type { FastifyPluginAsync } from 'fastify';
@@ -101,7 +102,10 @@ async function summarize(
 }
 
 export const reportRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/api/v1/reports/dashboard', async (request, reply) => {
+  app.get(
+    '/api/v1/reports/dashboard',
+    { preHandler: requireTier(['pro', 'business']) },
+    async (request, reply) => {
     const org = await requireActiveOrg(request, reply);
     if (!org) return;
     const parsed = RangeQuery.safeParse(request.query);
@@ -188,5 +192,6 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
         }),
       ),
     });
-  });
+    },
+  );
 };

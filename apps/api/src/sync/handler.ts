@@ -17,7 +17,6 @@
  *      M6 / M9 fill them in once the mobile client uses them.
  *
  * TODO(W6): Redis pub/sub for cross-machine event fan-out.
- * TODO(W12): tier gating — close with code='tier_required' for free orgs.
  */
 import { verifyToken } from '@clerk/backend';
 import { categories, customers, products, variants, modifiers } from '@counter/schema';
@@ -108,7 +107,19 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
       return;
     }
 
-    log.info({ orgId: org.id, userId: auth.userId }, 'sync session opened');
+    if (org.tier === 'free') {
+      ws.send(
+        encodeServerMessage({
+          type: 'error',
+          code: 'tier_required',
+          message: 'Sync requires a Pro or Business plan',
+        }),
+      );
+      ws.close();
+      return;
+    }
+
+    log.info({ orgId: org.id, userId: auth.userId, tier: org.tier }, 'sync session opened');
 
     let helloSeen = false;
     const pingTimer = setInterval(() => {

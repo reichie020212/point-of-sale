@@ -20,12 +20,7 @@ export default async function RegistersPage() {
   let devices: DeviceRow[] = [];
   let error: string | null = null;
   try {
-    // TODO(M12): /api/v1/devices endpoint lands with the tier gating
-    // commit. For now this returns an empty array since the route
-    // isn't wired yet — the page renders the empty state.
-    const res = await api<{ devices: DeviceRow[] }>('/api/v1/devices').catch(() => ({
-      devices: [] as DeviceRow[],
-    }));
+    const res = await api<{ devices: DeviceRow[] }>('/api/v1/devices');
     devices = res.devices;
   } catch (err) {
     error = err instanceof Error ? err.message : 'unknown error';
@@ -54,7 +49,7 @@ export default async function RegistersPage() {
         <div className="rounded-2xl border border-dashed border-line-2 bg-surface p-12 text-center">
           <p className="text-ink-2">No devices paired yet.</p>
           <p className="mt-2 font-mono text-xs text-ink-3">
-            Pairing flow lands in M12 with tier gating.
+            Pair a register from the mobile app to see it here.
           </p>
         </div>
       ) : (

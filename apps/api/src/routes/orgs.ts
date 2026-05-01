@@ -13,6 +13,7 @@ import { organizations, users, type Region } from '@counter/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { getActiveOrg } from '../auth/org.js';
 import { getDb } from '../db.js';
 
 import type { FastifyPluginAsync } from 'fastify';
@@ -30,6 +31,12 @@ const CreateOrgBody = z.object({
 });
 
 export const orgRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/api/v1/orgs/active', async (request, reply) => {
+    const org = await getActiveOrg(request);
+    if (!org) return reply.code(404).send({ error: 'no_active_org' });
+    return { org };
+  });
+
   app.get('/api/v1/orgs', async (request) => {
     const db = getDb();
     const memberships = await app.clerk.users.getOrganizationMembershipList({

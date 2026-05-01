@@ -3,6 +3,9 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { View } from 'react-native';
+
+import { SyncBanner } from '../src/components/SyncBanner';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -16,8 +19,9 @@ export default function RootLayout() {
   }, [fontsLoaded]);
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: nativeTheme.colors.bg }}>
       <StatusBar style="dark" />
+      <SyncBanner />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: nativeTheme.colors.surface },
@@ -25,6 +29,6 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: nativeTheme.colors.bg },
         }}
       />
-    </>
+    </View>
   );
 }
