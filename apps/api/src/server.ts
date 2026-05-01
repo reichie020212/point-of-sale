@@ -8,6 +8,7 @@
  *   4. listen
  */
 import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
 
 import { clerkAuthPlugin } from './auth/clerk.js';
@@ -18,6 +19,7 @@ import { categoryRoutes } from './routes/categories.js';
 import { healthRoutes } from './routes/health.js';
 import { orgRoutes } from './routes/orgs.js';
 import { productRoutes } from './routes/products.js';
+import { registerSyncHandler } from './sync/handler.js';
 
 import type { ClerkClient } from '@clerk/backend';
 
@@ -44,6 +46,7 @@ export async function buildServer() {
   });
 
   await app.register(cors, { origin: config.CORS_ORIGINS, credentials: true });
+  await app.register(websocket);
   await app.register(clerkAuthPlugin, { config });
 
   await app.register(healthRoutes);
@@ -51,6 +54,7 @@ export async function buildServer() {
   await app.register(orgRoutes);
   await app.register(categoryRoutes);
   await app.register(productRoutes);
+  registerSyncHandler(app, { config });
 
   app.setErrorHandler((err, _req, reply) => {
     app.log.error({ err }, 'unhandled error');
