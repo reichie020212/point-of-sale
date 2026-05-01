@@ -1,0 +1,30 @@
+{
+  "name": "@counter/payments",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Payment-provider abstraction. Cash + mock for W4; Stripe Terminal interface stubbed for W5 hardware integration.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "devDependencies": {
+    "@counter/eslint-config": "workspace:*",
+    "@counter/tsconfig": "workspace:*",
+    "eslint": "8.57.0",
+    "typescript": "5.4.5"
+  }
+}

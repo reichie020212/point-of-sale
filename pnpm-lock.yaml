@@ -237,6 +237,36 @@ importers:
         specifier: 5.4.5
         version: 5.4.5
 
+  packages/payments:
+    devDependencies:
+      '@counter/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint
+      '@counter/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      eslint:
+        specifier: 8.57.0
+        version: 8.57.0
+      typescript:
+        specifier: 5.4.5
+        version: 5.4.5
+
+  packages/printers:
+    devDependencies:
+      '@counter/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint
+      '@counter/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      eslint:
+        specifier: 8.57.0
+        version: 8.57.0
+      typescript:
+        specifier: 5.4.5
+        version: 5.4.5
+
   packages/schema:
     dependencies:
       drizzle-orm:
