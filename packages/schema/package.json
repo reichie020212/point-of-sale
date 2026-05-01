@@ -16,7 +16,11 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "drizzle", "drizzle.config.ts"],
+  "files": [
+    "dist",
+    "drizzle",
+    "drizzle.config.ts"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",

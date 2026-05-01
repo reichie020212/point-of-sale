@@ -1,0 +1,35 @@
+{
+  "name": "@counter/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Counter POS backend — Fastify + Clerk + Postgres (via @counter/schema).",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@clerk/backend": "1.13.10",
+    "@counter/schema": "workspace:*",
+    "@fastify/cors": "9.0.1",
+    "drizzle-orm": "0.33.0",
+    "fastify": "4.28.1",
+    "fastify-plugin": "4.5.1",
+    "pino-pretty": "11.2.2",
+    "postgres": "3.4.4",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@counter/eslint-config": "workspace:*",
+    "@counter/tsconfig": "workspace:*",
+    "@types/node": "20.12.7",
+    "eslint": "8.57.0",
+    "tsx": "4.19.2",
+    "typescript": "5.4.5"
+  }
+}

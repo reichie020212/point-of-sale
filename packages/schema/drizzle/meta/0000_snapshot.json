@@ -93,16 +93,12 @@
         "organizations_clerk_org_id_unique": {
           "name": "organizations_clerk_org_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "clerk_org_id"
-          ]
+          "columns": ["clerk_org_id"]
         },
         "organizations_slug_unique": {
           "name": "organizations_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       }
     },
@@ -178,12 +174,8 @@
           "name": "users_active_org_id_organizations_id_fk",
           "tableFrom": "users",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "active_org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["active_org_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -193,16 +185,12 @@
         "users_clerk_user_id_unique": {
           "name": "users_clerk_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "clerk_user_id"
-          ]
+          "columns": ["clerk_user_id"]
         },
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       }
     }
@@ -211,10 +199,7 @@
     "public.region": {
       "name": "region",
       "schema": "public",
-      "values": [
-        "US",
-        "EU"
-      ]
+      "values": ["US", "EU"]
     }
   },
   "schemas": {},
