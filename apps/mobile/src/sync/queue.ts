@@ -1,18 +1,25 @@
 /**
  * Local sync queue — FIFO over the WatermelonDB `sync_queue` table.
  *
- * **Implementation status**: in-memory stub for M6. The shape of this
- * module is the durable contract; the SQLite-backed implementation
- * lands once Watermelon model classes do (a few of them block on real
- * device runtime testing — see master Blueprint §10 Out-of-Scope).
+ * Durable: rows live in SQLite, so an offline-only sale survives an app
+ * kill, a phone reboot, or a process crash. Drained rows are deleted
+ * only after the server returns ok=true; on ok=false we keep the row,
+ * bump `attempts`, and stash `last_error`. This is the contract the
+ * SyncClient relies on to satisfy HANDOFF §2.3 ("offline-first or
+ * nothing").
  *
- * The fields mirror @counter/sync's PushOp:
- *   - clientOpId  — stable identifier the server uses for idempotency
+ * Fields mirror @counter/sync's PushOp:
+ *   - clientOpId  — stable identifier for server-side idempotency
  *   - table       — sync table name
- *   - payload     — the row to upsert
+ *   - payload     — the row to upsert (JSON-encoded for storage)
  *   - asDelta     — true only for inventory_movements (delta-CRDT)
  */
+import { Q } from '@nozbe/watermelondb';
+
+import { database } from '../db';
+
 import type { SyncTable } from '@counter/sync';
+import type { Model } from '@nozbe/watermelondb';
 
 export interface QueuedOp {
   clientOpId: string;
@@ -21,45 +28,88 @@ export interface QueuedOp {
   asDelta: boolean;
 }
 
-interface InternalEntry extends QueuedOp {
-  createdAt: number;
+interface QueueRow extends Model {
+  client_op_id: string;
+  table_name: string;
+  payload_json: string;
+  as_delta: boolean;
+  created_at: number;
   attempts: number;
-  lastError?: string;
+  last_error: string | null;
 }
 
-const memory = new Map<string, InternalEntry>();
+const TABLE = 'sync_queue';
+
+function row(record: Model): QueueRow {
+  // WatermelonDB exposes columns via a typed accessor that we don't
+  // model classes for yet (master Blueprint M5 follow-up). Fall back to
+  // the raw underscore properties — `_raw` carries the snake_case row.
+  return (record as unknown as { _raw: QueueRow })._raw;
+}
 
 export async function enqueue(op: QueuedOp): Promise<void> {
-  memory.set(op.clientOpId, { ...op, createdAt: Date.now(), attempts: 0 });
-  return Promise.resolve();
+  await database.write(async () => {
+    await database.get(TABLE).create((record) => {
+      const r = row(record);
+      r.client_op_id = op.clientOpId;
+      r.table_name = op.table;
+      r.payload_json = JSON.stringify(op.payload);
+      r.as_delta = op.asDelta;
+      r.created_at = Date.now();
+      r.attempts = 0;
+      r.last_error = null;
+    });
+  });
 }
 
 export async function drain(limit = 50): Promise<QueuedOp[]> {
-  const all = [...memory.values()].sort((a, b) => a.createdAt - b.createdAt);
-  return Promise.resolve(
-    all.slice(0, limit).map(({ clientOpId, table, payload, asDelta }) => ({
-      clientOpId,
-      table,
-      payload,
-      asDelta,
-    })),
-  );
+  const rows = await database
+    .get(TABLE)
+    .query(Q.sortBy('created_at', Q.asc), Q.take(limit))
+    .fetch();
+  return rows.map((record) => {
+    const r = row(record);
+    return {
+      clientOpId: r.client_op_id,
+      table: r.table_name as SyncTable,
+      payload: JSON.parse(r.payload_json) as Record<string, unknown>,
+      asDelta: r.as_delta,
+    };
+  });
+}
+
+async function findByClientOpId(clientOpId: string): Promise<Model | null> {
+  const rows = await database
+    .get(TABLE)
+    .query(Q.where('client_op_id', clientOpId), Q.take(1))
+    .fetch();
+  return rows[0] ?? null;
 }
 
 export async function markAcked(clientOpId: string): Promise<void> {
-  memory.delete(clientOpId);
-  return Promise.resolve();
+  const record = await findByClientOpId(clientOpId);
+  if (!record) return;
+  await database.write(async () => {
+    await record.destroyPermanently();
+  });
 }
 
 export async function markFailed(clientOpId: string, error: string): Promise<void> {
-  const entry = memory.get(clientOpId);
-  if (!entry) return Promise.resolve();
-  entry.attempts += 1;
-  entry.lastError = error;
-  return Promise.resolve();
+  const record = await findByClientOpId(clientOpId);
+  if (!record) return;
+  await database.write(async () => {
+    await record.update((r) => {
+      const raw = row(r);
+      raw.attempts += 1;
+      raw.last_error = error;
+    });
+  });
 }
 
-/** TODO(M6 follow-up): test-only export until Watermelon-backed impl lands. */
-export function __resetQueueForTests(): void {
-  memory.clear();
+/** Test-only — wipe the queue between cases. Production code never calls this. */
+export async function __resetQueueForTests(): Promise<void> {
+  const rows = await database.get(TABLE).query().fetch();
+  await database.write(async () => {
+    await Promise.all(rows.map((r) => r.destroyPermanently()));
+  });
 }

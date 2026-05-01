@@ -101,7 +101,9 @@ columns default. The importer fails the row (not the batch) if `name` or
 ## 6. Known gaps (out of scope for this push)
 
 - No automated end-to-end test in CI for the airplane-mode flow — needs
-  a device farm; manual only for now.
+  a device farm; manual only for now. The durable sync queue (HANDOFF
+  §2.3) is testable manually via §3.1–3.6 and §4 above; the Watermelon
+  table now persists across app kills.
 - Pairing flow (`POST /pairing`) ships in W5+. Devices listed via
   `/api/v1/devices` today are seeded by direct DB insert.
 - Receipt printing on real Bluetooth printers is interface-only; the
@@ -109,3 +111,7 @@ columns default. The importer fails the row (not the batch) if `name` or
 - Real Clerk-token JWKS verification is bypassed in the CI integration
   test via `TEST_BEARER`. End-to-end with real Clerk is exercised
   manually via the steps above.
+- Cross-instance sync fan-out: the broker contract is tested via
+  `apps/api/test/pubsub.test.ts`. The WebSocket → EventMessage path is
+  wired but not yet asserted in CI; covered by manual verification
+  when running two API instances against a single Redis.

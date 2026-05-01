@@ -11,6 +11,14 @@ const ConfigSchema = z.object({
 
   DATABASE_URL: z.string().url(),
 
+  /**
+   * Redis connection for cross-instance sync fan-out (and, eventually,
+   * rate limiting). Optional in development — when unset, the API uses
+   * an in-process pub/sub stub and a single instance behaves correctly,
+   * but multi-instance deployments need a real broker.
+   */
+  REDIS_URL: z.string().url().optional(),
+
   CLERK_SECRET_KEY: z.string().min(1),
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
 

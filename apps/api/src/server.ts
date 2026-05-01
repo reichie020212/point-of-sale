@@ -25,6 +25,7 @@ import { orgRoutes } from './routes/orgs.js';
 import { productRoutes } from './routes/products.js';
 import { reportRoutes } from './routes/reports.js';
 import { registerSyncHandler } from './sync/handler.js';
+import { createBroker, type Broker } from './sync/pubsub.js';
 
 import type { ClerkClient } from '@clerk/backend';
 
@@ -34,9 +35,21 @@ declare module 'fastify' {
   }
 }
 
-export async function buildServer() {
+export interface BuildServerOptions {
+  /**
+   * Override the pub/sub broker. Tests pass a shared InProcessBroker so
+   * two `buildServer()` calls in the same process can fan-out to each
+   * other without needing Redis. Production / dev rely on the default,
+   * which inspects `REDIS_URL`.
+   */
+  broker?: Broker;
+}
+
+export async function buildServer(opts: BuildServerOptions = {}) {
   const config = loadConfig();
   initDb(config.DATABASE_URL);
+  const broker = opts.broker ?? createBroker(config.REDIS_URL);
+  const ownsBroker = !opts.broker;
 
   const app = Fastify({
     logger: {
@@ -64,7 +77,11 @@ export async function buildServer() {
   await app.register(reportRoutes);
   await app.register(importRoutes);
   await app.register(exportRoutes);
-  registerSyncHandler(app, { config });
+  registerSyncHandler(app, { config, broker });
+
+  app.addHook('onClose', async () => {
+    if (ownsBroker) await broker.close();
+  });
 
   app.setErrorHandler((err, _req, reply) => {
     app.log.error({ err }, 'unhandled error');

@@ -9,14 +9,13 @@
  *   3. Server PULLs every record where version > cursor for each
  *      sync-replicated table, in batches of `PULL_PAGE_SIZE`. Tombstones
  *      ride along for HANDOFF's 30-day window.
- *   4. Server emits live EVENTs for that org as other devices PUSH
- *      (Redis pub/sub fan-out is wired in W6 — for now only the
- *      originating connection sees its own writes).
+ *   4. Server emits live EVENTs for that org via the pub/sub broker
+ *      (`./pubsub.ts`). In a multi-instance deployment the broker is
+ *      Redis; in a single-instance dev/test boot it's an in-process
+ *      EventEmitter.
  *   5. PUSH writes are accepted with idempotency on `clientOpId` and
  *      ack'd with the canonical version. PUSH writes are stubbed in W3;
  *      M6 / M9 fill them in once the mobile client uses them.
- *
- * TODO(W6): Redis pub/sub for cross-machine event fan-out.
  */
 import { verifyToken } from '@clerk/backend';
 import { categories, customers, products, variants, modifiers } from '@counter/schema';
@@ -35,6 +34,7 @@ import { and, asc, eq, gt } from 'drizzle-orm';
 import { getActiveOrg } from '../auth/org.js';
 import { getDb } from '../db.js';
 
+import type { Broker } from './pubsub.js';
 import type { Config } from '../config.js';
 import type { FastifyInstance } from 'fastify';
 import type { WebSocket } from 'ws';
@@ -43,6 +43,7 @@ const PULL_PAGE_SIZE = 200;
 
 export interface SyncHandlerDeps {
   config: Config;
+  broker: Broker;
 }
 
 export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps) {
@@ -131,8 +132,24 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
       }
     }, 15_000);
 
+    const unsubscribe = await deps.broker.subscribe(org.id, (event) => {
+      try {
+        ws.send(
+          encodeServerMessage({
+            type: 'event',
+            table: event.table as SyncTable,
+            record: { id: event.id },
+            cursor: event.version,
+          }),
+        );
+      } catch (err) {
+        log.warn({ err }, 'fanout send failed');
+      }
+    });
+
     ws.on('close', () => {
       clearInterval(pingTimer);
+      void unsubscribe();
       log.info({ orgId: org.id }, 'sync session closed');
     });
 
