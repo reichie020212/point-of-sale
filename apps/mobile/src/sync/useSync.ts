@@ -12,6 +12,8 @@
 import Constants from 'expo-constants';
 import { useEffect, useRef } from 'react';
 
+import { database } from '../db';
+
 import { SyncClient } from './client';
 import { drain, markAcked, markFailed } from './queue';
 import { upsertRecord } from './upsert';
@@ -32,7 +34,7 @@ export function useSync() {
         else await markFailed(clientOpId, error ?? 'ack_failed');
       },
       onRecord: async (table, record) => {
-        await upsertRecord(table, record);
+        await upsertRecord(database, table, record);
       },
     });
     clientRef.current = client;

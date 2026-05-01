@@ -12,6 +12,7 @@
     "build": "expo export",
     "lint": "eslint app src",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts",
     "clean": "rm -rf .expo dist .turbo"
   },
   "dependencies": {
@@ -53,6 +54,7 @@
     "@types/react": "18.3.11",
     "babel-plugin-transform-inline-environment-variables": "0.4.4",
     "eslint": "8.57.0",
+    "tsx": "4.19.2",
     "typescript": "5.4.5"
   }
 }

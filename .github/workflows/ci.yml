@@ -82,3 +82,6 @@ jobs:
 
       - name: API smoke + integration tests
         run: pnpm --filter @counter/api test
+
+      - name: Mobile unit tests
+        run: pnpm --filter @counter/mobile test
