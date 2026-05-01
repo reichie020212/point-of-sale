@@ -1,0 +1,75 @@
+/*
+ * Counter POS design tokens — CSS variables.
+ *
+ * Import once at the root of any web app:
+ *   @import '@counter/tokens/variables.css';
+ *
+ * OKLCH values where defined; hex fallbacks otherwise. Token names mirror
+ * HANDOFF §1 with `--color-*` prefixing the palette so we can later add
+ * other token namespaces (`--space-*`, `--radius-*`) without collisions.
+ */
+
+:root {
+  /* palette */
+  --color-bg: #f5f2ec;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbf8f2;
+
+  --color-ink: #161615;
+  --color-ink-2: #4a4842;
+  --color-ink-3: #8b887f;
+
+  --color-line: rgba(0, 0, 0, 0.07);
+  --color-line-2: rgba(0, 0, 0, 0.12);
+
+  --color-accent: oklch(0.72 0.14 70);
+  --color-accent-deep: oklch(0.55 0.16 70);
+  --color-accent-soft: oklch(0.94 0.05 70);
+
+  --color-ok: #4ba971;
+  --color-warn: #d4a842;
+  --color-bad: #d84c3f;
+
+  /* typography */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: 'Fraunces', Georgia, serif;
+
+  /* spacing — 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-3xl: 18px;
+  --radius-4xl: 24px;
+  --radius-pill: 999px;
+
+  /* shadows */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lifted: 0 24px 48px rgba(20, 15, 5, 0.15);
+  --shadow-hero: 0 40px 80px rgba(20, 15, 5, 0.18);
+}
+
+/* Money / timestamp utility — every price MUST use this. */
+.font-money,
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}

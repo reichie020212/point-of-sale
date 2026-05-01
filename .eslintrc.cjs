@@ -14,11 +14,12 @@ module.exports = {
     'coverage/',
     // Design prototypes are read-only references — they intentionally use
     // hard-coded colors and HTML/JSX-via-Babel-standalone tricks that the
-    // production stack does not.
-    'src/',
-    'web/',
-    'shared/',
-    'Counter POS.html',
-    'Counter Web.html',
+    // production stack does not. Anchored with a leading slash so they
+    // only match the repo root, not workspace `src/` or `web/` dirs.
+    '/src/',
+    '/web/',
+    '/shared/',
+    '/Counter POS.html',
+    '/Counter Web.html',
   ],
 };

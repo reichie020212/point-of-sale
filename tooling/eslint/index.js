@@ -23,6 +23,15 @@ module.exports = {
     'plugin:import/typescript',
     'prettier',
   ],
+  settings: {
+    'import/resolver': {
+      typescript: {
+        alwaysTryTypes: true,
+        project: ['tsconfig.json', 'packages/*/tsconfig.json', 'apps/*/tsconfig.json'],
+      },
+      node: true,
+    },
+  },
   rules: {
     '@typescript-eslint/no-unused-vars': [
       'error',
