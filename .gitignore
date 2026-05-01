@@ -31,3 +31,7 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# TypeScript build artifacts
+*.tsbuildinfo
+next-env.d.ts
