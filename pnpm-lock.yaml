@@ -87,6 +87,12 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@counter/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
+      '@counter/printers':
+        specifier: workspace:*
+        version: link:../../packages/printers
       '@counter/sync':
         specifier: workspace:*
         version: link:../../packages/sync
