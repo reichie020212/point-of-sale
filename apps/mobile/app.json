@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Counter",
+    "slug": "counter",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "scheme": "counter",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.counter.pos"
+    },
+    "android": {
+      "package": "app.counter.pos",
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F2EC"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "ios": { "deploymentTarget": "15.0" },
+          "android": { "minSdkVersion": 23 }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
