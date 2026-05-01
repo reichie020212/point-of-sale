@@ -16,8 +16,11 @@ env:
   # Placeholder values so `next build` and the API config loader pass.
   # Real auth flows are exercised in the W2+ e2e suite, not in CI.
   CLERK_SECRET_KEY: sk_test_placeholder_for_ci
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder_for_ci
-  CLERK_PUBLISHABLE_KEY: pk_test_placeholder_for_ci
+  # Clerk's runtime atob()-decodes the publishable key; this string
+  # base64-decodes to "dev-site.clerk.accounts.dev$" which satisfies
+  # the format check without hitting any real Clerk service.
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZGV2LXNpdGUuY2xlcmsuYWNjb3VudHMuZGV2JA
+  CLERK_PUBLISHABLE_KEY: pk_test_ZGV2LXNpdGUuY2xlcmsuYWNjb3VudHMuZGV2JA
   DATABASE_URL: postgresql://localhost:5432/counter_dev
   NEXT_PUBLIC_API_URL: http://localhost:4000
 
