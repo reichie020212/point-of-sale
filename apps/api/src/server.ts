@@ -20,6 +20,7 @@ import { customerRoutes } from './routes/customers.js';
 import { healthRoutes } from './routes/health.js';
 import { orgRoutes } from './routes/orgs.js';
 import { productRoutes } from './routes/products.js';
+import { reportRoutes } from './routes/reports.js';
 import { registerSyncHandler } from './sync/handler.js';
 
 import type { ClerkClient } from '@clerk/backend';
@@ -56,6 +57,7 @@ export async function buildServer() {
   await app.register(categoryRoutes);
   await app.register(productRoutes);
   await app.register(customerRoutes);
+  await app.register(reportRoutes);
   registerSyncHandler(app, { config });
 
   app.setErrorHandler((err, _req, reply) => {
