@@ -24,6 +24,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Money } from '../src/components/Money';
 import { database } from '../src/db';
 import { useCart } from '../src/state/cart';
+import { useDevice } from '../src/state/device';
 import { useLastSale } from '../src/state/last-sale';
 import { enqueue } from '../src/sync/queue';
 
@@ -39,6 +40,7 @@ export default function PaymentScreen() {
   const customerId = useCart((s) => s.customerId);
   const clear = useCart((s) => s.clear);
   const setLastSale = useLastSale((s) => s.set);
+  const identity = useDevice((s) => s.identity);
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -95,10 +97,10 @@ export default function PaymentScreen() {
           const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
           raw.server_id = orderId;
           raw.client_op_id = clientOpId;
-          raw.org_id = '';
+          raw.org_id = identity?.orgId ?? '';
           raw.customer_id = customerId;
           raw.shift_id = null;
-          raw.device_id = '';
+          raw.device_id = identity?.deviceId ?? '';
           raw.status = 'completed';
           raw.payment_method = 'cash';
           raw.subtotal_cents = subtotal;
@@ -114,7 +116,7 @@ export default function PaymentScreen() {
           await itemsCol.create((row) => {
             const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
             raw.server_id = `${orderId}_${line.lineId}`;
-            raw.org_id = '';
+            raw.org_id = identity?.orgId ?? '';
             raw.order_id = orderId;
             raw.variant_id = line.variantId;
             raw.name_snapshot = line.nameSnapshot;

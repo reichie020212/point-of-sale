@@ -5,6 +5,7 @@
  * client-side WebSocket subscription (added in M12 once tier gating
  * is wired). For now devices show their last-seen timestamp.
  */
+import { PairDeviceButton } from '../../../../components/PairDeviceButton';
 import { api } from '../../../../lib/api';
 
 interface DeviceRow {
@@ -14,6 +15,7 @@ interface DeviceRow {
   status: 'live' | 'offline' | 'revoked';
   lastIp: string | null;
   lastSeenAt: string | null;
+  pairingActive: boolean;
 }
 
 export default async function RegistersPage() {
@@ -35,12 +37,7 @@ export default async function RegistersPage() {
             {devices.length} device{devices.length === 1 ? '' : 's'}
           </p>
         </div>
-        <button
-          type="button"
-          className="rounded-lg border border-line-2 bg-surface px-4 py-2 text-sm text-ink hover:bg-surface-2"
-        >
-          Pair new device
-        </button>
+        <PairDeviceButton />
       </header>
 
       {error ? (
@@ -61,9 +58,11 @@ export default async function RegistersPage() {
             >
               <header className="flex items-center justify-between">
                 <span className="font-medium text-ink">{d.name}</span>
-                <StatusPill status={d.status} />
+                <StatusPill status={d.status} pairingActive={d.pairingActive} />
               </header>
-              <p className="mt-1 text-xs text-ink-3">{d.model ?? 'unknown model'}</p>
+              <p className="mt-1 text-xs text-ink-3">
+                {d.pairingActive ? 'Awaiting first pair' : (d.model ?? 'unknown model')}
+              </p>
               <dl className="mt-3 grid grid-cols-2 gap-y-1 text-xs">
                 <dt className="text-ink-3">Last IP</dt>
                 <dd className="font-mono tabular text-ink-2">{d.lastIp ?? '—'}</dd>
@@ -80,7 +79,20 @@ export default async function RegistersPage() {
   );
 }
 
-function StatusPill({ status }: { status: DeviceRow['status'] }) {
+function StatusPill({
+  status,
+  pairingActive,
+}: {
+  status: DeviceRow['status'];
+  pairingActive: boolean;
+}) {
+  if (pairingActive) {
+    return (
+      <span className="rounded-pill bg-surface-2 px-2 py-0.5 text-xs font-medium text-ink-2">
+        pairing
+      </span>
+    );
+  }
   const cls =
     status === 'live'
       ? 'bg-accent-soft text-accent-deep'

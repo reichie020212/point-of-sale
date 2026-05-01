@@ -24,7 +24,18 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 
 export async function getActiveOrg(request: FastifyRequest): Promise<Organization | null> {
   const db = getDb();
-  const { userId, orgId: clerkOrgId } = request.auth;
+  const { userId, orgId: clerkOrgId, deviceOrgId } = request.auth;
+
+  // Device-token requests carry the resolved org uuid directly; no
+  // user lookup needed.
+  if (deviceOrgId) {
+    const [byDevice] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, deviceOrgId))
+      .limit(1);
+    return byDevice ?? null;
+  }
 
   if (clerkOrgId) {
     const [byClerkOrg] = await db

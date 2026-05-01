@@ -18,7 +18,14 @@
  *      M6 / M9 fill them in once the mobile client uses them.
  */
 import { verifyToken } from '@clerk/backend';
-import { categories, customers, products, variants, modifiers } from '@counter/schema';
+import {
+  categories,
+  customers,
+  devices,
+  products,
+  variants,
+  modifiers,
+} from '@counter/schema';
 import {
   SYNC_TABLES,
   cursorFromString,
@@ -29,8 +36,9 @@ import {
   type PushOp,
   type SyncTable,
 } from '@counter/sync';
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull } from 'drizzle-orm';
 
+import { hashDeviceToken, isDeviceToken } from '../auth/device-token.js';
 import { getActiveOrg } from '../auth/org.js';
 import { getDb } from '../db.js';
 
@@ -69,22 +77,48 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
       return;
     }
 
-    let auth: { userId: string; sessionId: string };
-    try {
-      const verified = await verifyToken(token, { secretKey: deps.config.CLERK_SECRET_KEY });
-      if (!verified.sub || !verified.sid) throw new Error('missing claims');
-      auth = { userId: verified.sub, sessionId: verified.sid };
-    } catch (err) {
-      log.warn({ err }, 'sync token verification failed');
-      ws.send(
-        encodeServerMessage({
-          type: 'error',
-          code: 'unauthorized',
-          message: 'Token verification failed',
-        }),
-      );
-      ws.close();
-      return;
+    let auth: { userId: string; sessionId: string; deviceOrgId?: string; deviceId?: string };
+    if (isDeviceToken(token)) {
+      const db = getDb();
+      const [device] = await db
+        .select()
+        .from(devices)
+        .where(and(eq(devices.tokenHash, hashDeviceToken(token)), isNull(devices.deletedAt)))
+        .limit(1);
+      if (!device || device.status === 'revoked') {
+        ws.send(
+          encodeServerMessage({
+            type: 'error',
+            code: 'unauthorized',
+            message: 'Device token revoked or unknown',
+          }),
+        );
+        ws.close();
+        return;
+      }
+      auth = {
+        userId: `device:${device.id}`,
+        sessionId: `device:${device.id}`,
+        deviceOrgId: device.orgId,
+        deviceId: device.id,
+      };
+    } else {
+      try {
+        const verified = await verifyToken(token, { secretKey: deps.config.CLERK_SECRET_KEY });
+        if (!verified.sub || !verified.sid) throw new Error('missing claims');
+        auth = { userId: verified.sub, sessionId: verified.sid };
+      } catch (err) {
+        log.warn({ err }, 'sync token verification failed');
+        ws.send(
+          encodeServerMessage({
+            type: 'error',
+            code: 'unauthorized',
+            message: 'Token verification failed',
+          }),
+        );
+        ws.close();
+        return;
+      }
     }
 
     // Resolve active org without a real FastifyRequest — fake the auth
@@ -94,7 +128,8 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
         userId: auth.userId,
         sessionId: auth.sessionId,
         orgId: null,
-        deviceId: auth.sessionId,
+        deviceId: auth.deviceId ?? auth.sessionId,
+        deviceOrgId: auth.deviceOrgId,
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);

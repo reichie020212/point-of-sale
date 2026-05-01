@@ -95,6 +95,11 @@ export interface VariantSummary {
   priceCents: number;
 }
 
+export interface PairResponse {
+  device: { id: string; name: string; model: string | null; orgId: string };
+  token: string;
+}
+
 export const apiCalls = {
   listProducts: (query?: { categoryId?: string; cursor?: string; limit?: number }) =>
     api<{ products: ProductSummary[]; nextCursor: string | null }>('/api/v1/products', {
@@ -108,4 +113,6 @@ export const apiCalls = {
     api<{ categories: Array<{ id: string; name: string; sortOrder: number }> }>(
       '/api/v1/categories',
     ),
+  pair: (body: { code: string; name?: string; model?: string }) =>
+    api<PairResponse>('/api/v1/devices/pair', { method: 'POST', body }),
 };

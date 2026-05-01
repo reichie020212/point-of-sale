@@ -1,9 +1,11 @@
 import { nativeTheme } from '@counter/tokens/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 
 import { SyncBanner } from '../src/components/SyncBanner';
+import { useDevice } from '../src/state/device';
 
 // TODO(M5): preload JetBrainsMono-Regular, Inter, and Fraunces via
 // expo-font and gate the splash on the fontsLoaded boolean. The earlier
@@ -11,6 +13,10 @@ import { SyncBanner } from '../src/components/SyncBanner';
 // stopped resolving in RN 0.74 and broke `expo export`. System fonts
 // render acceptably until real font assets ship.
 export default function RootLayout() {
+  const hydrate = useDevice((s) => s.hydrate);
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
   return (
     <View style={{ flex: 1, backgroundColor: nativeTheme.colors.bg }}>
       <StatusBar style="dark" />

@@ -12,7 +12,13 @@
  * separately and replace `auth.deviceId`.
  */
 import { createClerkClient, verifyToken } from '@clerk/backend';
+import { devices } from '@counter/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 import fp from 'fastify-plugin';
+
+import { getDb } from '../db.js';
+
+import { hashDeviceToken, isDeviceToken } from './device-token.js';
 
 import type { Config } from '../config.js';
 import type { FastifyRequest } from 'fastify';
@@ -23,8 +29,11 @@ declare module 'fastify' {
       userId: string;
       sessionId: string;
       orgId: string | null;
-      /** Approximated as sessionId in Week 1; real device id in W5/6. */
+      /** Approximated as sessionId in Week 1; real device id once paired. */
       deviceId: string;
+      /** Set when the request authenticated as a paired device. The
+       *  internal organizations.id (uuid), not the Clerk org id. */
+      deviceOrgId?: string;
     };
   }
 }
@@ -33,7 +42,12 @@ export interface ClerkPluginOptions {
   config: Config;
 }
 
-const PUBLIC_PREFIXES = ['/healthz'];
+/**
+ * Routes that don't require auth. `/api/v1/devices/pair` is the
+ * exchange endpoint a freshly-installed app calls before it has a
+ * token to send.
+ */
+const PUBLIC_PREFIXES = ['/healthz', '/api/v1/devices/pair'];
 
 export const clerkAuthPlugin = fp<ClerkPluginOptions>(async (app, opts) => {
   const { config } = opts;
@@ -66,6 +80,32 @@ export const clerkAuthPlugin = fp<ClerkPluginOptions>(async (app, opts) => {
         sessionId: 'session_test',
         orgId: process.env.TEST_CLERK_ORG_ID ?? null,
         deviceId: 'device_test',
+      };
+      return;
+    }
+
+    // Device-token branch: opaque token issued by the pairing flow.
+    // Look up the device by SHA-256 hash, deny if revoked or expired.
+    if (isDeviceToken(token)) {
+      const db = getDb();
+      const tokenHash = hashDeviceToken(token);
+      const [device] = await db
+        .select()
+        .from(devices)
+        .where(and(eq(devices.tokenHash, tokenHash), isNull(devices.deletedAt)))
+        .limit(1);
+      if (!device || device.status === 'revoked') {
+        reply
+          .code(401)
+          .send({ error: 'invalid_token', message: 'Device token revoked or unknown' });
+        return;
+      }
+      request.auth = {
+        userId: `device:${device.id}`,
+        sessionId: `device:${device.id}`,
+        orgId: null,
+        deviceId: device.id,
+        deviceOrgId: device.orgId,
       };
       return;
     }
