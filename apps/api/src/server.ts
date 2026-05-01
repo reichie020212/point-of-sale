@@ -14,8 +14,10 @@ import { clerkAuthPlugin } from './auth/clerk.js';
 import { loadConfig } from './config.js';
 import { initDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
+import { categoryRoutes } from './routes/categories.js';
 import { healthRoutes } from './routes/health.js';
 import { orgRoutes } from './routes/orgs.js';
+import { productRoutes } from './routes/products.js';
 
 import type { ClerkClient } from '@clerk/backend';
 
@@ -47,6 +49,8 @@ export async function buildServer() {
   await app.register(healthRoutes);
   await app.register(authRoutes);
   await app.register(orgRoutes);
+  await app.register(categoryRoutes);
+  await app.register(productRoutes);
 
   app.setErrorHandler((err, _req, reply) => {
     app.log.error({ err }, 'unhandled error');
