@@ -1,7 +1,9 @@
 'use client';
 
 import { useAuth } from '@clerk/nextjs';
+import { resolveColor } from '@counter/tokens';
 import { useRouter } from 'next/navigation';
+import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 
 interface PairingResponse {
@@ -95,11 +97,25 @@ export function PairDeviceButton() {
           >
             <h2 className="font-display text-2xl text-ink">Pair a device</h2>
             <p className="mt-2 text-sm text-ink-2">
-              Open the Counter app on the unpaired phone and enter this code in Settings →
-              Pair device.
+              Open the Counter app on the unpaired phone, tap{' '}
+              <span className="text-ink">Pair device</span>, and scan this code. Or enter
+              the 12 characters below by hand.
             </p>
+            {status.state === 'showing' && (
+              <div className="mt-6 flex justify-center">
+                <div className="rounded-2xl border border-line bg-surface p-4">
+                  <QRCodeSVG
+                    value={status.code}
+                    size={200}
+                    level="M"
+                    bgColor="transparent"
+                    fgColor={resolveColor('ink', 'hex')}
+                  />
+                </div>
+              </div>
+            )}
             <p
-              className="mt-6 select-all text-center font-mono text-3xl tabular tracking-wider text-ink"
+              className="mt-6 select-all text-center font-mono text-2xl tabular tracking-wider text-ink"
               aria-live="polite"
             >
               {status.code}
