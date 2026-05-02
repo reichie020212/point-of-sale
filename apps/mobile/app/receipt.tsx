@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   },
   receiptInner: { padding: 16 },
   receiptText: {
-    fontFamily: 'JetBrainsMono-Regular',
+    fontFamily: nativeTheme.fonts.mono,
     fontSize: 12,
     color: nativeTheme.colors.ink,
     fontVariant: ['tabular-nums'],

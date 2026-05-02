@@ -34,10 +34,22 @@ export const nativeTheme = {
     warn: colors.warn.hex,
     bad: colors.bad.hex,
   },
+  // Family names mirror @expo-google-fonts/{inter,jetbrains-mono,fraunces}.
+  // RN cannot synthesize bold/italic from a single ttf, so each weight ships
+  // as its own family; consumers pick the exact face they want.
   fonts: {
-    ui: 'Inter',
-    mono: 'JetBrainsMono-Regular',
-    display: 'Fraunces',
+    ui: 'Inter_400Regular',
+    uiMedium: 'Inter_500Medium',
+    uiSemibold: 'Inter_600SemiBold',
+    uiBold: 'Inter_700Bold',
+    mono: 'JetBrainsMono_400Regular',
+    monoMedium: 'JetBrainsMono_500Medium',
+    monoSemibold: 'JetBrainsMono_600SemiBold',
+    monoBold: 'JetBrainsMono_700Bold',
+    display: 'Fraunces_400Regular',
+    displayItalic: 'Fraunces_400Regular_Italic',
+    displayMedium: 'Fraunces_500Medium',
+    displayMediumItalic: 'Fraunces_500Medium_Italic',
     families: fontFamilies,
   },
   weights: fontWeights,
@@ -45,7 +57,7 @@ export const nativeTheme = {
   radii,
   text: {
     money: {
-      fontFamily: 'JetBrainsMono-Regular',
+      fontFamily: 'JetBrainsMono_400Regular',
     },
   },
 } as const;

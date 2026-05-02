@@ -111,6 +111,15 @@ importers:
       '@counter/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
+      '@expo-google-fonts/fraunces':
+        specifier: 0.2.3
+        version: 0.2.3
+      '@expo-google-fonts/inter':
+        specifier: 0.2.3
+        version: 0.2.3
+      '@expo-google-fonts/jetbrains-mono':
+        specifier: 0.2.3
+        version: 0.2.3
       '@expo/metro-runtime':
         specifier: 3.2.3
         version: 3.2.3(react-native@0.74.5(@babel/core@7.25.2)(@babel/preset-env@7.29.3(@babel/core@7.25.2))(@types/react@18.3.11)(react@18.2.0))
@@ -1648,6 +1657,15 @@ packages:
   '@eslint/js@8.57.0':
     resolution: {integrity: sha512-Ys+3g2TaW7gADOJzPt83SJtCDhMjndcDMFVQ/Tj9iA1BfJzFKD9mAUXT3OenpuPHbI6P/myECxRJrofUsDx/5g==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
+  '@expo-google-fonts/fraunces@0.2.3':
+    resolution: {integrity: sha512-krgIGxViwYutW+egNHfSfc8u10ZpP+UL10MZHxbQ8C4LwEKA4HWuWLEiqSsbj1Kq3OoiXnbR+x9ERWgdhuoB1A==}
+
+  '@expo-google-fonts/inter@0.2.3':
+    resolution: {integrity: sha512-iHK9FI+dnE45X5c2Z5hSFwNH4zUWethizpbv3XUn0FIGw5jwvzriENz0a6wCdkI4/d+1QkurnHo5XHti7TbNJA==}
+
+  '@expo-google-fonts/jetbrains-mono@0.2.3':
+    resolution: {integrity: sha512-TlAlQzlDYT/cwg3kjME54P/iOl5dxv+EZ0iYSMZ6+3Jhw0oImBI/BVPVKLP+KT+sAs8ze1FvGTYXrtfiYolxtw==}
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
@@ -7727,6 +7745,12 @@ snapshots:
       - supports-color
 
   '@eslint/js@8.57.0': {}
+
+  '@expo-google-fonts/fraunces@0.2.3': {}
+
+  '@expo-google-fonts/inter@0.2.3': {}
+
+  '@expo-google-fonts/jetbrains-mono@0.2.3': {}
 
   '@expo/bunyan@4.0.1':
     dependencies:

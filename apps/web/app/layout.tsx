@@ -9,23 +9,26 @@ import type { ReactNode } from 'react';
 const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-ui-loaded',
+  variable: '--font-ui',
   display: 'swap',
+  fallback: ['-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-mono-loaded',
+  variable: '--font-mono',
   display: 'swap',
+  fallback: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
 });
 
 const fraunces = Fraunces({
   subsets: ['latin'],
   weight: ['400', '500'],
   style: ['normal', 'italic'],
-  variable: '--font-display-loaded',
+  variable: '--font-display',
   display: 'swap',
+  fallback: ['Georgia', 'serif'],
 });
 
 export const metadata: Metadata = {
