@@ -33,6 +33,7 @@ const FormSchema = z.object({
     .max(40)
     .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'Lowercase letters, numbers, and hyphens only'),
   region: z.enum(['US', 'EU']),
+  timezone: z.string().trim().min(2).max(64).optional(),
 });
 
 export type CreateOrgState = { ok: false; error: string } | { ok: true };
@@ -42,6 +43,7 @@ export async function createOrg(_prev: CreateOrgState | null, formData: FormData
     name: formData.get('name'),
     slug: formData.get('slug'),
     region: formData.get('region'),
+    timezone: formData.get('timezone') || undefined,
   });
   if (!parsed.success) {
     const first = parsed.error.issues[0];

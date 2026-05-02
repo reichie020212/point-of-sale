@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 
 import { createOrg, type CreateOrgState } from './actions';
@@ -26,6 +27,7 @@ export default function OnboardingPage() {
           required
         />
         <RegionPicker />
+        <TimezoneField />
         {/* TODO(open-question): tax engine selector lands here once
             HANDOFF §9 is resolved. Region pinning is the only pre-launch
             commitment. */}
@@ -108,6 +110,50 @@ function RegionOption({
         <span className="block text-sm font-medium text-ink">{label}</span>
         <span className="block font-mono text-xs text-ink-3">{subtitle}</span>
       </span>
+    </label>
+  );
+}
+
+function TimezoneField() {
+  const [tz, setTz] = useState('UTC');
+  const [zones, setZones] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      setTz(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+    } catch {
+      // Browser without resolved tz support — fall back to UTC.
+    }
+    // `Intl.supportedValuesOf` is in every evergreen browser as of 2024.
+    // Cast through unknown for older TS lib types.
+    const intl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] };
+    if (typeof intl.supportedValuesOf === 'function') {
+      setZones(intl.supportedValuesOf('timeZone'));
+    }
+  }, []);
+
+  return (
+    <label className="block">
+      <span className="block text-sm font-medium text-ink">Business timezone</span>
+      <p className="mt-1 text-xs text-ink-3">
+        Reports and "Today" buckets use this zone. We default to your browser&apos;s.
+      </p>
+      <select
+        name="timezone"
+        value={tz}
+        onChange={(e) => setTz(e.target.value)}
+        className="mt-2 block w-full rounded-lg border border-line-2 bg-surface px-3 py-2 text-ink outline-none focus:border-accent-deep"
+      >
+        {zones.length === 0 ? (
+          <option value={tz}>{tz}</option>
+        ) : (
+          zones.map((z) => (
+            <option key={z} value={z}>
+              {z}
+            </option>
+          ))
+        )}
+      </select>
     </label>
   );
 }

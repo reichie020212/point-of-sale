@@ -13,8 +13,10 @@
  * are summed in cents from the orders table — refunds get subtracted
  * from gross to compute net.
  *
- * TODO(timezone): bucketing is in UTC today. Once `organizations.timezone`
- * lands (master Blueprint §4), pass it to date_trunc.
+ * Timezone: every bucket and the "today" boundary are computed in the
+ * shop's local zone (`organizations.timezone`). Postgres handles the
+ * truncation via `date_trunc(field, source, time_zone)`; the JS-side
+ * window math lives in `../util/timezone.ts`.
  */
 import { orderItems, orders, refunds } from '@counter/schema';
 import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
@@ -23,6 +25,7 @@ import { z } from 'zod';
 import { requireActiveOrg } from '../auth/org.js';
 import { requireTier } from '../auth/tier.js';
 import { getDb } from '../db.js';
+import { addDays, startOfLocalDay } from '../util/timezone.js';
 
 import type { FastifyPluginAsync } from 'fastify';
 
@@ -40,22 +43,18 @@ interface Window {
   bucket: 'hour' | 'day';
 }
 
-function windowFor(range: Range, now: Date): Window {
+function windowFor(range: Range, now: Date, tz: string): Window {
   const end = now;
   if (range === 'today') {
-    const start = new Date(end);
-    start.setUTCHours(0, 0, 0, 0);
-    const prevEnd = new Date(start);
-    const prevStart = new Date(start);
-    prevStart.setUTCDate(prevStart.getUTCDate() - 1);
+    const start = startOfLocalDay(end, tz);
+    const prevEnd = start;
+    const prevStart = startOfLocalDay(addDays(start, -1), tz);
     return { start, end, prevStart, prevEnd, bucket: 'hour' };
   }
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - days);
+  const start = addDays(end, -days);
   const prevEnd = start;
-  const prevStart = new Date(start);
-  prevStart.setUTCDate(prevStart.getUTCDate() - days);
+  const prevStart = addDays(start, -days);
   return { start, end, prevStart, prevEnd, bucket: 'day' };
 }
 
@@ -114,7 +113,8 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
     }
     const { range } = parsed.data;
     const now = new Date();
-    const w = windowFor(range, now);
+    const tz = org.timezone;
+    const w = windowFor(range, now, tz);
     const db = getDb();
 
     const [current, previous] = await Promise.all([
@@ -122,10 +122,13 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
       summarize(db, org.id, w.prevStart, w.prevEnd),
     ]);
 
+    // Postgres `date_trunc(field, source, time_zone)` — bucket boundaries
+    // are at local-midnight (or local-hour) and the result is a
+    // `timestamp with time zone` aligned to the same instant.
     const bucketSql =
       w.bucket === 'hour'
-        ? sql`date_trunc('hour', ${orders.createdAt})`
-        : sql`date_trunc('day', ${orders.createdAt})`;
+        ? sql`date_trunc('hour', ${orders.createdAt}, ${tz})`
+        : sql`date_trunc('day', ${orders.createdAt}, ${tz})`;
 
     const series = await db
       .select({
@@ -168,6 +171,7 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.send({
       range,
+      timezone: tz,
       window: { start: w.start.toISOString(), end: w.end.toISOString(), bucket: w.bucket },
       summary: {
         current,

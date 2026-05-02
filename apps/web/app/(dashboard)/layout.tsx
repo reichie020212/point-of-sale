@@ -43,9 +43,25 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <div className="min-h-screen bg-bg">
       <header className="flex items-center justify-between border-b border-line bg-surface px-6 py-4">
-        <Link href="/dashboard" className="font-display text-xl text-ink">
-          Counter
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link href="/dashboard" className="font-display text-xl text-ink">
+            Counter
+          </Link>
+          <nav className="hidden items-center gap-4 text-sm text-ink-2 md:flex">
+            <Link href="/dashboard/products" className="hover:text-ink">
+              Products
+            </Link>
+            <Link href="/dashboard/customers" className="hover:text-ink">
+              Customers
+            </Link>
+            <Link href="/dashboard/registers" className="hover:text-ink">
+              Registers
+            </Link>
+            <Link href="/dashboard/settings" className="hover:text-ink">
+              Settings
+            </Link>
+          </nav>
+        </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-ink-3">{active.name}</span>
           <UserButton afterSignOutUrl="/" />

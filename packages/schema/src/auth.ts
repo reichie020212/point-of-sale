@@ -32,6 +32,14 @@ export const organizations = pgTable(
     region: region('region').notNull(),
     tier: tier('tier').notNull().default('free'),
     /**
+     * IANA timezone (e.g. `America/New_York`). The reports engine
+     * buckets sales using this value so "Today" tracks the shop's
+     * local opening hours instead of UTC midnight. Default `UTC`
+     * keeps existing rows valid; onboarding picks the operator's
+     * browser tz.
+     */
+    timezone: text('timezone').notNull().default('UTC'),
+    /**
      * Per-org Lamport clock. Every PUSH batch increments this once and
      * stamps the new value onto every row written in the batch. Sync
      * pulls compare row.version > client.cursor, so monotonic per-org

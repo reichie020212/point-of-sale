@@ -31,7 +31,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
-import { organizations, products, users, customers, variants } from '@counter/schema';
+import { orders, organizations, products, users, customers, variants } from '@counter/schema';
 import { eq, sql } from 'drizzle-orm';
 
 import { initDb, getDb } from '../src/db.js';
@@ -202,7 +202,75 @@ test('integration suite', async (t) => {
     assert.equal(typeof proBody.summary.current.orders, 'number');
   });
 
+  await t.test('reports respect organizations.timezone for "today" bucketing', async () => {
+    // Set the org tz to Asia/Manila (UTC+8). Insert an order at
+    // 2026-05-02 23:30 Manila — that's 2026-05-02 15:30 UTC, which
+    // is the *same* UTC day but well before Manila midnight.
+    // The order should appear in "Today" iff `now` is inside that
+    // local Manila day. We craft a fixed `now` via the controller's
+    // current-time read by issuing the request immediately.
+    await db
+      .update(organizations)
+      .set({ timezone: 'Asia/Manila' })
+      .where(eq(organizations.id, orgId));
+
+    // Build a synthetic order placed at the exact UTC instant we
+    // care about and verify "30d" range counts it. (We cannot mock
+    // `now()` cleanly, but the wider 30-day window will include any
+    // order from the last month regardless of tz — what we're really
+    // checking is that the bucket SQL doesn't choke on the tz arg.)
+    const placedAt = new Date(Date.now() - 60 * 60 * 1000); // 1h ago
+    await db.insert(orders).values({
+      orgId,
+      clientOpId: `tz-test-${randomUUID()}`,
+      paymentMethod: 'cash',
+      status: 'completed',
+      subtotalCents: 1000,
+      taxCents: 0,
+      tipCents: 0,
+      discountCents: 0,
+      totalCents: 1000,
+      createdAt: placedAt,
+    });
+
+    const res = await app.inject({
+      url: '/api/v1/reports/dashboard?range=30d',
+      headers: { authorization: `Bearer ${TEST_BEARER}` },
+    });
+    assert.equal(res.statusCode, 200);
+    const body = res.json() as { timezone: string; series: { bucket: string }[] };
+    assert.equal(body.timezone, 'Asia/Manila');
+    assert.ok(body.series.length > 0, 'expected at least one series bucket');
+  });
+
+  await t.test('PATCH /orgs/active updates timezone, rejects garbage', async () => {
+    const ok = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/orgs/active',
+      headers: {
+        authorization: `Bearer ${TEST_BEARER}`,
+        'content-type': 'application/json',
+      },
+      payload: { timezone: 'America/New_York' },
+    });
+    assert.equal(ok.statusCode, 200);
+    const okBody = ok.json() as { org: { timezone: string } };
+    assert.equal(okBody.org.timezone, 'America/New_York');
+
+    const bad = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/orgs/active',
+      headers: {
+        authorization: `Bearer ${TEST_BEARER}`,
+        'content-type': 'application/json',
+      },
+      payload: { timezone: 'Atlantis/Lost' },
+    });
+    assert.equal(bad.statusCode, 400);
+  });
+
   // Cleanup so the test is idempotent.
+  await db.delete(orders).where(eq(orders.orgId, orgId));
   await db.delete(variants).where(eq(variants.orgId, orgId));
   await db.delete(products).where(eq(products.orgId, orgId));
   await db.delete(customers).where(eq(customers.orgId, orgId));

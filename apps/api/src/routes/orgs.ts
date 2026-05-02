@@ -13,11 +13,19 @@ import { organizations, users, type Region } from '@counter/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { getActiveOrg } from '../auth/org.js';
+import { getActiveOrg, requireActiveOrg } from '../auth/org.js';
 import { getDb } from '../db.js';
+import { isValidTimezone } from '../util/timezone.js';
 
 import type { FastifyPluginAsync } from 'fastify';
 
+
+const Timezone = z
+  .string()
+  .trim()
+  .min(2)
+  .max(64)
+  .refine(isValidTimezone, 'Unknown IANA timezone');
 
 const CreateOrgBody = z.object({
   name: z.string().trim().min(2).max(80),
@@ -28,7 +36,16 @@ const CreateOrgBody = z.object({
     .max(40)
     .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'slug must be lowercase alphanumeric/hyphens'),
   region: z.enum(['US', 'EU']),
+  timezone: Timezone.optional(),
 });
+
+const PatchOrgBody = z
+  .object({
+    timezone: Timezone.optional(),
+  })
+  .refine((b) => Object.values(b).some((v) => v !== undefined), {
+    message: 'At least one field must be provided',
+  });
 
 export const orgRoutes: FastifyPluginAsync = async (app) => {
   app.get('/api/v1/orgs/active', async (request, reply) => {
@@ -57,7 +74,7 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
     }
-    const { name, slug, region } = parsed.data;
+    const { name, slug, region, timezone } = parsed.data;
     const db = getDb();
 
     const clerkOrg = await app.clerk.organizations.createOrganization({
@@ -73,6 +90,7 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
         name,
         slug,
         region: region satisfies Region,
+        ...(timezone ? { timezone } : {}),
       })
       .returning();
 
@@ -87,5 +105,22 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(users.clerkUserId, request.auth.userId));
 
     return reply.code(201).send({ org: row });
+  });
+
+  app.patch('/api/v1/orgs/active', async (request, reply) => {
+    const org = await requireActiveOrg(request, reply);
+    if (!org) return;
+    const parsed = PatchOrgBody.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
+    }
+    const db = getDb();
+    const [updated] = await db
+      .update(organizations)
+      .set({ ...parsed.data, updatedAt: new Date() })
+      .where(eq(organizations.id, org.id))
+      .returning();
+    if (!updated) return reply.code(500).send({ error: 'update_failed' });
+    return reply.send({ org: updated });
   });
 };
