@@ -108,6 +108,18 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
       createdBy: request.auth.userId,
     });
 
+    // Region-driven currency/tax defaults. The schema column defaults
+    // (PHP / 12.000) reflect §9's PH-only launch; for an explicit
+    // US or EU choice we still want sensible bootstraps so an operator
+    // doesn't have to immediately PATCH the new org. Owners can refine
+    // both fields later from /dashboard/settings.
+    const defaults: { currency: string; taxRate: string } =
+      region === 'PH'
+        ? { currency: 'PHP', taxRate: '12.000' }
+        : region === 'US'
+          ? { currency: 'USD', taxRate: '0.000' }
+          : { currency: 'EUR', taxRate: '0.000' };
+
     const inserted = await db
       .insert(organizations)
       .values({
@@ -115,6 +127,8 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
         name,
         slug,
         region: region satisfies Region,
+        currency: defaults.currency,
+        taxRate: defaults.taxRate,
         ...(timezone ? { timezone } : {}),
       })
       .returning();

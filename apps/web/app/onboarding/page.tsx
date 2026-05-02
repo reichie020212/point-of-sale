@@ -78,9 +78,10 @@ function RegionPicker() {
       <p className="mt-1 text-xs text-ink-3">
         Pinned at sign-up — your shop&apos;s data lives in this region permanently.
       </p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <RegionOption value="US" label="United States" subtitle="us-east" defaultChecked />
-        <RegionOption value="EU" label="European Union" subtitle="eu-west" />
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <RegionOption value="PH" label="Philippines" subtitle="ap-southeast • ₱" defaultChecked />
+        <RegionOption value="US" label="United States" subtitle="us-east • $" />
+        <RegionOption value="EU" label="European Union" subtitle="eu-west • €" />
       </div>
     </fieldset>
   );

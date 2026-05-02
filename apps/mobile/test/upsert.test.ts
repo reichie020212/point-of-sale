@@ -169,6 +169,36 @@ test('refunds is a no-op (not yet mirrored locally)', async () => {
   assert.equal(writes.length, 0);
 });
 
+test('drops camelCase keys (bug-shape sentinel for the snake_case allowlist)', async () => {
+  const { db, writes } = fakeDatabase('products', []);
+  // Pre-fix, the API serializer emitted Drizzle's camelCase JS keys
+  // (orgId, updatedAt, priceCents). The snake_case allowlist filtered
+  // them all out, leaving only id + deleted_at on the local row. This
+  // test pins that filter so a regression on the server side (a
+  // payload reverting to camelCase) wouldn't pass undetected — the
+  // assertion below would still hold and the API serializer test
+  // would fail first.
+  await applyServerChanges({
+    database: db,
+    table: 'products',
+    records: [
+      {
+        id: 'srv-bug-shape',
+        orgId: 'should-be-dropped',
+        categoryId: 'also-dropped',
+        name: 'Mocha', // already snake_case-equivalent at top level
+      },
+    ],
+  });
+  const created = writes[0]!.batch[0]!;
+  assert.equal(created._raw.server_id, 'srv-bug-shape');
+  assert.equal(created._raw.name, 'Mocha');
+  assert.equal('orgId' in created._raw, false);
+  assert.equal('org_id' in created._raw, false);
+  assert.equal('categoryId' in created._raw, false);
+  assert.equal('category_id' in created._raw, false);
+});
+
 test('multiple records batched in one write', async () => {
   const existing = makeExisting('srv-9');
   const { db, writes } = fakeDatabase('products', [existing]);

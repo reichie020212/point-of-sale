@@ -32,7 +32,7 @@ const FormSchema = z.object({
     .min(2)
     .max(40)
     .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'Lowercase letters, numbers, and hyphens only'),
-  region: z.enum(['US', 'EU']),
+  region: z.enum(['US', 'EU', 'PH']),
   timezone: z.string().trim().min(2).max(64).optional(),
 });
 

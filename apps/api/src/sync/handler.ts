@@ -41,6 +41,7 @@ import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { hashDeviceToken, isDeviceToken } from '../auth/device-token.js';
 import { getActiveOrg } from '../auth/org.js';
 import { getDb } from '../db.js';
+import { serializeRow } from '../util/serialize.js';
 
 import { processPush } from './service.js';
 
@@ -431,17 +432,6 @@ const SUPPORTED_PULLS: Partial<
       .orderBy(asc(customers.version))
       .limit(PULL_PAGE_SIZE),
 };
-
-/** Bigint columns are JSON-stringified as decimal strings. Dates as ISO. */
-function serializeRow(row: unknown): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
-    if (typeof v === 'bigint') out[k] = v.toString(10);
-    else if (v instanceof Date) out[k] = v.toISOString();
-    else out[k] = v;
-  }
-  return out;
-}
 
 function extractToken(request: { headers: Record<string, string | string[] | undefined>; query: unknown }): string | null {
   const headers = request.headers;
