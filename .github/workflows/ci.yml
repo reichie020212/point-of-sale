@@ -77,6 +77,15 @@ jobs:
       - name: Build all
         run: pnpm build
 
+      - name: Upload mobile bundle (Android)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-bundle-android
+          path: apps/mobile/dist
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Apply database migrations
         run: pnpm --filter @counter/schema db:migrate
 
