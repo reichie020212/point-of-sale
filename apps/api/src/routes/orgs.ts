@@ -10,12 +10,13 @@
  * deferred operation (TODO(open-question): region migration policy).
  */
 import { organizations, users, type Region } from '@counter/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getActiveOrg, requireActiveOrg } from '../auth/org.js';
 import { requireRole } from '../auth/role.js';
 import { getDb } from '../db.js';
+import { serializeRow } from '../util/serialize.js';
 import { isValidTimezone } from '../util/timezone.js';
 
 import type { FastifyPluginAsync } from 'fastify';
@@ -160,12 +161,35 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
       }
       const db = getDb();
+      // Bump the org's Lamport clock and stamp the new value on the
+      // row's own `version`. Mobile clients with cursor < newVersion
+      // will see the update via the next PULL/EVENT; clients already
+      // ahead skip it. The two columns can diverge — `currentVersion`
+      // moves on every PUSH batch, `version` only when this row
+      // changes.
       const [updated] = await db
         .update(organizations)
-        .set({ ...parsed.data, updatedAt: new Date() })
+        .set({
+          ...parsed.data,
+          currentVersion: sql`${organizations.currentVersion} + 1`,
+          version: sql`${organizations.currentVersion} + 1`,
+          updatedAt: new Date(),
+        })
         .where(eq(organizations.id, org.id))
         .returning();
       if (!updated) return reply.code(500).send({ error: 'update_failed' });
+      // Fan out the change so every paired register reactively picks
+      // up the new tax rate / currency / timezone without waiting
+      // for the next REST refresh. Wire shape mirrors the sync
+      // engine's record_updated EVENT (Blueprint #18).
+      await app.broker.publish(updated.id, {
+        type: 'record_updated',
+        orgId: updated.id,
+        table: 'organizations',
+        id: updated.id,
+        version: updated.version.toString(),
+        record: serializeRow(updated),
+      });
       return reply.send({ org: updated });
     },
   );

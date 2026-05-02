@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "version" bigint DEFAULT 0 NOT NULL;

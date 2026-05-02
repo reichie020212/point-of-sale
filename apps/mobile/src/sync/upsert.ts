@@ -132,9 +132,13 @@ const COLUMNS: Record<SyncTable, string[]> = {
     'updated_at',
     'deleted_at',
   ],
-  // Refunds / devices not yet mirrored locally; treat as no-op.
+  // Refunds / devices not mirrored locally; treat as no-op.
+  // Organizations is intercepted upstream (useSync routes it to
+  // useOrgSettings) before reaching applyServerChanges, so the
+  // empty allowlist here is just for type-completeness.
   refunds: [],
   devices: [],
+  organizations: [],
 } as const;
 
 function toMs(value: unknown): number | null {

@@ -24,6 +24,7 @@ import {
   modifiers,
   orderItems,
   orders,
+  organizations,
   products,
   shifts,
   variants,
@@ -77,6 +78,10 @@ export async function fetchRecord(
     }
     case 'shifts': {
       const [row] = await db.select().from(shifts).where(eq(shifts.id, id)).limit(1);
+      return row ?? null;
+    }
+    case 'organizations': {
+      const [row] = await db.select().from(organizations).where(eq(organizations.id, id)).limit(1);
       return row ?? null;
     }
     case 'refunds':

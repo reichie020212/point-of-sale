@@ -13,6 +13,7 @@ import Constants from 'expo-constants';
 import { useEffect, useRef } from 'react';
 
 import { database } from '../db';
+import { useOrgSettings } from '../state/org-settings';
 
 import { SyncClient } from './client';
 import { drain, markAcked, markFailed } from './queue';
@@ -34,6 +35,13 @@ export function useSync() {
         else await markFailed(clientOpId, error ?? 'ack_failed');
       },
       onRecord: async (table, record) => {
+        // Org settings live in a Zustand slice, not WatermelonDB —
+        // intercept here so a dashboard tax-rate / currency / timezone
+        // edit reaches the cart math reactively (Blueprint #19).
+        if (table === 'organizations') {
+          await useOrgSettings.getState().applyFromRecord(record);
+          return;
+        }
         await upsertRecord(database, table, record);
       },
     });

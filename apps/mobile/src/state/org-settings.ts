@@ -2,41 +2,39 @@
  * Org-settings slice.
  *
  * Cart math (subtotal × tax rate, money formatting) needs to know the
- * active org's `tax_rate` and `currency`. Mobile is paired-device-
- * authed against the API; we fetch `GET /api/v1/orgs/active` once on
- * boot and on identity changes, persist the result in expo-secure-
- * store, and use it as the source of truth in the cart.
+ * active org's `tax_rate` and `currency`. Three update paths feed it:
+ *   1. `hydrate()` — boot, reads the last-cached value from
+ *      expo-secure-store under `counter.orgSettings`.
+ *   2. `refresh()` — REST `GET /api/v1/orgs/active` via device-token
+ *      auth; called whenever device identity changes.
+ *   3. `applyFromRecord()` — reactive path. Blueprint #19 makes the
+ *      `organizations` row sync-replicated; useSync intercepts the
+ *      EVENT and routes the snake_case record straight here, so a
+ *      dashboard tax-rate / currency / timezone edit reaches the
+ *      register without a REST round-trip.
  *
  * Defaults reflect HANDOFF §9 (PH-only launch): 12.000% VAT, PHP. The
  * defaults guarantee the cart always has a usable rate even before
  * the first refresh completes — the receipt won't show "0% tax" by
  * accident on a fresh install.
- *
- * Org-settings are not on the WatermelonDB sync loop yet; reactive
- * updates from the dashboard land on next mobile boot or next
- * `refresh()` call. Sync loop integration is a follow-up Blueprint.
  */
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
 import { apiCalls, ApiError } from '../api/client';
 
+import {
+  DEFAULT_ORG_SETTINGS,
+  parseTaxRate,
+  recordToSettings,
+  type OrgSettings,
+} from './org-settings-helpers';
+
+export type { OrgSettings } from './org-settings-helpers';
+
 const SETTINGS_KEY = 'counter.orgSettings';
 
-export interface OrgSettings {
-  /** Tax rate as a fraction (0.12 for 12% VAT). */
-  taxRate: number;
-  /** ISO 4217 currency code. */
-  currency: string;
-  /** IANA timezone, used by future receipt headers. */
-  timezone: string;
-}
-
-const DEFAULTS: OrgSettings = {
-  taxRate: 0.12,
-  currency: 'PHP',
-  timezone: 'UTC',
-};
+const DEFAULTS = DEFAULT_ORG_SETTINGS;
 
 interface OrgSettingsState {
   settings: OrgSettings;
@@ -44,6 +42,13 @@ interface OrgSettingsState {
   ready: boolean;
   hydrate: () => Promise<void>;
   refresh: () => Promise<void>;
+  /**
+   * Apply a snake_case organization record from a sync EVENT. The
+   * server's record_updated payload (Blueprint #18) carries the full
+   * row; this lets a tax-rate / currency / timezone change reach the
+   * register reactively, without a REST round-trip.
+   */
+  applyFromRecord: (record: Record<string, unknown>) => Promise<void>;
 }
 
 export const useOrgSettings = create<OrgSettingsState>((set, get) => ({
@@ -69,6 +74,11 @@ export const useOrgSettings = create<OrgSettingsState>((set, get) => ({
       await SecureStore.deleteItemAsync(SETTINGS_KEY);
       set({ ready: true });
     }
+  },
+  applyFromRecord: async (record) => {
+    const next = recordToSettings(record, get().settings);
+    set({ settings: next, ready: true });
+    await SecureStore.setItemAsync(SETTINGS_KEY, JSON.stringify(next));
   },
   refresh: async () => {
     try {
@@ -97,13 +107,3 @@ export const useOrgSettings = create<OrgSettingsState>((set, get) => ({
   },
 }));
 
-/**
- * Server stores `tax_rate` as `numeric(5,3)` and emits a string like
- * `'12.000'` (percent). Cart math wants a fraction (0.12), so divide
- * by 100. Bad input → 0 (no tax) so we never multiply by NaN.
- */
-function parseTaxRate(raw: string): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return n / 100;
-}

@@ -22,6 +22,7 @@ import {
   categories,
   customers,
   devices,
+  organizations,
   products,
   variants,
   modifiers,
@@ -445,6 +446,17 @@ const SUPPORTED_PULLS: Partial<
       .from(customers)
       .where(and(eq(customers.orgId, orgId), gt(customers.version, cursor)))
       .orderBy(asc(customers.version))
+      .limit(PULL_PAGE_SIZE),
+  // The org row is one-row-per-device-session; emit it on HELLO if
+  // its `version` is ahead of the device's cursor. This is what
+  // makes tax-rate / currency / timezone edits flow to mobile
+  // without needing a REST round-trip.
+  organizations: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(organizations)
+      .where(and(eq(organizations.id, orgId), gt(organizations.version, cursor)))
+      .orderBy(asc(organizations.version))
       .limit(PULL_PAGE_SIZE),
 };
 

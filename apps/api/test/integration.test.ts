@@ -260,7 +260,17 @@ test('integration suite', async (t) => {
     assert.ok(Array.isArray(body.devices));
   });
 
-  await t.test('PATCH /orgs/active updates timezone, rejects garbage', async () => {
+  await t.test('PATCH /orgs/active updates timezone, rejects garbage, bumps version', async () => {
+    // Read current version so we can verify it bumps after PATCH —
+    // Blueprint #19 makes the org row sync-replicated, so each
+    // settings change advances the row's Lamport stamp.
+    const [before] = await db
+      .select({ version: organizations.version })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    const versionBefore = before?.version ?? 0n;
+
     const ok = await app.inject({
       method: 'PATCH',
       url: '/api/v1/orgs/active',
@@ -271,8 +281,21 @@ test('integration suite', async (t) => {
       payload: { timezone: 'America/New_York' },
     });
     assert.equal(ok.statusCode, 200);
-    const okBody = ok.json() as { org: { timezone: string } };
+    const okBody = ok.json() as { org: { timezone: string; version: string } };
     assert.equal(okBody.org.timezone, 'America/New_York');
+
+    const [after] = await db
+      .select({ version: organizations.version, currentVersion: organizations.currentVersion })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    assert.ok(after, 'org row exists post-PATCH');
+    assert.ok(after.version > versionBefore, 'org.version must advance on PATCH');
+    assert.equal(
+      after.version,
+      after.currentVersion,
+      'org row version stamps the same Lamport value as currentVersion',
+    );
 
     const bad = await app.inject({
       method: 'PATCH',

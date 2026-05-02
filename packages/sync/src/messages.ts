@@ -30,6 +30,7 @@ export const SYNC_TABLES = [
   'refunds',
   'shifts',
   'devices',
+  'organizations',
 ] as const;
 
 export type SyncTable = (typeof SYNC_TABLES)[number];

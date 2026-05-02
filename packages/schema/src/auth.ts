@@ -72,6 +72,14 @@ export const organizations = pgTable(
     currentVersion: bigint('current_version', { mode: 'bigint' })
       .notNull()
       .default(sql`0`),
+    /**
+     * Row-level Lamport stamp for the org row itself. Used by the
+     * sync engine's PULL/EVENT loop so device tax-rate / currency /
+     * timezone / name changes can fan out reactively. Distinct from
+     * `currentVersion`: this column moves only when the org row
+     * changes; `currentVersion` moves on every PUSH batch.
+     */
+    version: bigint('version', { mode: 'bigint' }).notNull().default(sql`0`),
     createdAt: timestamp('created_at', { withTimezone: true })
       .default(sql`now()`)
       .notNull(),

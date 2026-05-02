@@ -50,6 +50,7 @@ import type { ClerkClient } from '@clerk/backend';
 declare module 'fastify' {
   interface FastifyInstance {
     clerk: ClerkClient;
+    broker: Broker;
   }
 }
 
@@ -86,6 +87,8 @@ export async function buildServer(opts: BuildServerOptions = {}) {
     trustProxy: true,
     disableRequestLogging: false,
   });
+
+  app.decorate('broker', broker);
 
   await app.register(cors, { origin: config.CORS_ORIGINS, credentials: true });
   await app.register(websocket);
