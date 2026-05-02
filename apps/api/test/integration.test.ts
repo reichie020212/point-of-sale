@@ -243,6 +243,22 @@ test('integration suite', async (t) => {
     assert.ok(body.series.length > 0, 'expected at least one series bucket');
   });
 
+  await t.test('GET /api/v1/sync/status reports orgVersion + per-device lag', async () => {
+    const res = await app.inject({
+      url: '/api/v1/sync/status',
+      headers: { authorization: `Bearer ${TEST_BEARER}` },
+    });
+    assert.equal(res.statusCode, 200);
+    const body = res.json() as {
+      orgVersion: string;
+      queuedOps: number;
+      devices: { id: string; lag: string; freshness: string }[];
+    };
+    assert.match(body.orgVersion, /^\d+$/);
+    assert.equal(typeof body.queuedOps, 'number');
+    assert.ok(Array.isArray(body.devices));
+  });
+
   await t.test('PATCH /orgs/active updates timezone, rejects garbage', async () => {
     const ok = await app.inject({
       method: 'PATCH',

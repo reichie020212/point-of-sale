@@ -1,0 +1,1 @@
+ALTER TABLE "devices" ADD COLUMN "last_seen_version" bigint DEFAULT 0 NOT NULL;

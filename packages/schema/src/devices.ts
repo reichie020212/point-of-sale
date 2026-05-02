@@ -40,6 +40,15 @@ export const devices = pgTable(
     /** Most-recent IP observed by the sync server. */
     lastIp: text('last_ip'),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    /**
+     * Highest org Lamport version this device has acknowledged seeing
+     * (PULL cursor on HELLO, plus the post-PUSH org version after each
+     * accepted batch). Used by `/api/v1/sync/status` to compute the
+     * device's current sync lag without per-row math.
+     */
+    lastSeenVersion: bigint('last_seen_version', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
     status: deviceStatus('status').notNull().default('offline'),
     /** Format: CNTR-XXXX-XXXX, 5-minute TTL during pairing flow. */
     pairingCode: text('pairing_code'),

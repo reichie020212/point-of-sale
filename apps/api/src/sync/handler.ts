@@ -36,7 +36,7 @@ import {
   type PushOp,
   type SyncTable,
 } from '@counter/sync';
-import { and, asc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
 
 import { hashDeviceToken, isDeviceToken } from '../auth/device-token.js';
 import { getActiveOrg } from '../auth/org.js';
@@ -159,6 +159,28 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
 
     log.info({ orgId: org.id, userId: auth.userId, tier: org.tier }, 'sync session opened');
 
+    // Heartbeat: when the session authenticated as a paired device,
+    // stamp `last_seen_at`/`last_ip` immediately. last_seen_version
+    // gets bumped on HELLO (using the cursor) and after every accepted
+    // PUSH. Clerk-token sessions skip this — no `devices` row to point
+    // at.
+    const deviceId = auth.deviceId;
+    const remoteIp =
+      typeof request.ip === 'string' ? request.ip : null;
+    if (deviceId) {
+      try {
+        await getDb()
+          .update(devices)
+          .set({
+            lastSeenAt: new Date(),
+            ...(remoteIp ? { lastIp: remoteIp } : {}),
+          })
+          .where(eq(devices.id, deviceId));
+      } catch (err) {
+        log.warn({ err }, 'heartbeat (open) failed');
+      }
+    }
+
     let helloSeen = false;
     const pingTimer = setInterval(() => {
       try {
@@ -215,6 +237,13 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
       if (parsed.type === 'hello') {
         helloSeen = true;
         await handleHello(ws, org.id, parsed);
+        if (deviceId) {
+          try {
+            await heartbeat(deviceId, cursorFromString(parsed.cursor));
+          } catch (err) {
+            log.warn({ err }, 'heartbeat (hello) failed');
+          }
+        }
         return;
       }
       if (parsed.type === 'push') {
@@ -240,8 +269,11 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
             })),
           });
           ws.send(encodeServerMessage({ type: 'ack', results }));
+          let highestVersion: bigint = 0n;
           for (const result of results) {
             if (!result.ok || !result.id || !result.version) continue;
+            const v = cursorFromString(result.version);
+            if (v > highestVersion) highestVersion = v;
             const op = parsed.ops.find((o: PushOp) => o.clientOpId === result.clientOpId);
             if (!op) continue;
             await deps.broker.publish(org.id, {
@@ -251,6 +283,13 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
               id: result.id,
               version: result.version,
             });
+          }
+          if (deviceId && highestVersion > 0n) {
+            try {
+              await heartbeat(deviceId, highestVersion);
+            } catch (err) {
+              log.warn({ err }, 'heartbeat (push) failed');
+            }
           }
         } catch (err) {
           log.error({ err }, 'push processing failed');
@@ -278,6 +317,21 @@ async function handleHello(ws: WebSocket, orgId: string, hello: Hello) {
   for (const table of requestedTables) {
     await pullTable(ws, db, orgId, table, cursor);
   }
+}
+
+/**
+ * Stamp `devices.last_seen_at` + monotonic `last_seen_version`. The
+ * version is wrapped in `greatest(...)` so an old HELLO can't roll
+ * the watermark back during a flaky reconnect.
+ */
+async function heartbeat(deviceId: string, version: bigint): Promise<void> {
+  await getDb()
+    .update(devices)
+    .set({
+      lastSeenAt: new Date(),
+      lastSeenVersion: sql`greatest(${devices.lastSeenVersion}, ${version})`,
+    })
+    .where(eq(devices.id, deviceId));
 }
 
 async function pullTable(

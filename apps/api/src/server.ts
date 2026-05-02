@@ -29,7 +29,7 @@ import Fastify from 'fastify';
 
 import { clerkAuthPlugin } from './auth/clerk.js';
 import { loadConfig } from './config.js';
-import { initDb } from './db.js';
+import { initDb, getDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { categoryRoutes } from './routes/categories.js';
 import { customerRoutes } from './routes/customers.js';
@@ -40,7 +40,9 @@ import { importRoutes } from './routes/imports.js';
 import { orgRoutes } from './routes/orgs.js';
 import { productRoutes } from './routes/products.js';
 import { reportRoutes } from './routes/reports.js';
+import { syncRoutes } from './routes/sync.js';
 import { registerSyncHandler } from './sync/handler.js';
+import { startMaintenanceWorker, type MaintenanceWorker } from './sync/maintenance.js';
 import { createBroker, type Broker } from './sync/pubsub.js';
 
 import type { ClerkClient } from '@clerk/backend';
@@ -59,6 +61,12 @@ export interface BuildServerOptions {
    * which inspects `REDIS_URL`.
    */
   broker?: Broker;
+  /**
+   * Disable the background sync_idempotency prune worker. Tests pass
+   * `false` so they can drive `pruneIdempotency` directly without a
+   * timer racing them. Production / dev leave it on.
+   */
+  startMaintenance?: boolean;
 }
 
 export async function buildServer(opts: BuildServerOptions = {}) {
@@ -93,9 +101,16 @@ export async function buildServer(opts: BuildServerOptions = {}) {
   await app.register(reportRoutes);
   await app.register(importRoutes);
   await app.register(exportRoutes);
+  await app.register(syncRoutes);
   registerSyncHandler(app, { config, broker });
 
+  let maintenance: MaintenanceWorker | null = null;
+  if (opts.startMaintenance ?? config.NODE_ENV !== 'test') {
+    maintenance = startMaintenanceWorker(getDb(), app.log);
+  }
+
   app.addHook('onClose', async () => {
+    maintenance?.stop();
     if (ownsBroker) await broker.close();
   });
 
