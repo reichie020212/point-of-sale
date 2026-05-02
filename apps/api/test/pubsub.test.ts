@@ -38,6 +38,11 @@ test('broker publish/subscribe round-trip', async () => {
       table: 'products',
       id: '00000000-0000-0000-0000-000000000001',
       version: '42',
+      record: {
+        id: '00000000-0000-0000-0000-000000000001',
+        org_id: ORG_ID,
+        name: 'Espresso',
+      },
     };
     await broker.publish(ORG_ID, event);
 
@@ -65,6 +70,7 @@ test('broker isolates channels by orgId', async () => {
       table: 'products',
       id: '00000000-0000-0000-0000-000000000002',
       version: '7',
+      record: { id: '00000000-0000-0000-0000-000000000002', org_id: 'different-org' },
     });
     await new Promise((r) => setTimeout(r, 50));
     assert.equal(received.length, 0);

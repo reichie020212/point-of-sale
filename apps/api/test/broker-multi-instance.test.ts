@@ -81,17 +81,34 @@ test('cross-instance broker', async (t) => {
       otherReceived.push(e);
     });
 
-    await t.test('publish on A reaches subscriber on B', async () => {
+    await t.test('publish on A reaches subscriber on B (record carries through)', async () => {
       const event: SyncFanoutEvent = {
         type: 'record_updated',
         orgId,
         table: 'products',
         id: '00000000-0000-0000-0000-000000000001',
         version: '42',
+        // Blueprint #18: full row rides the EVENT so receivers don't
+        // race the cursor. The wire shape is what serializeRow emits
+        // (snake_case keys, ISO timestamps, decimal-string bigints).
+        record: {
+          id: '00000000-0000-0000-0000-000000000001',
+          org_id: orgId,
+          name: 'Espresso',
+          status: 'active',
+          version: '42',
+          updated_at: '2026-05-03T12:00:00.000Z',
+          deleted_at: null,
+        },
       };
       await brokerA!.publish(orgId, event);
       const got = await waitFor(() => (received.length > 0 ? received[0] : undefined));
       assert.deepEqual(got, event);
+      assert.equal(got.type, 'record_updated');
+      if (got.type === 'record_updated') {
+        assert.equal(got.record.org_id, orgId);
+        assert.equal(got.record.name, 'Espresso');
+      }
     });
 
     await t.test('cross-instance fan-out preserves org isolation', async () => {
@@ -101,6 +118,7 @@ test('cross-instance broker', async (t) => {
         table: 'products',
         id: '00000000-0000-0000-0000-000000000002',
         version: '7',
+        record: { id: '00000000-0000-0000-0000-000000000002', org_id: 'unsubscribed-org' },
       };
       await brokerA!.publish('unsubscribed-org', otherOrgEvent);
 
@@ -110,6 +128,7 @@ test('cross-instance broker', async (t) => {
         table: 'products',
         id: '00000000-0000-0000-0000-000000000003',
         version: '8',
+        record: { id: '00000000-0000-0000-0000-000000000003', org_id: otherOrgId, name: 'Latte' },
       };
       await brokerA!.publish(otherOrgId, targetedEvent);
 
@@ -128,6 +147,7 @@ test('cross-instance broker', async (t) => {
         table: 'products',
         id: '00000000-0000-0000-0000-000000000004',
         version: '99',
+        record: { id: '00000000-0000-0000-0000-000000000004', org_id: orgId, name: 'Mocha' },
       });
       // Give the wire a moment; the unsubscribe should have removed the
       // listener before this event lands.

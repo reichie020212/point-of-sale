@@ -43,6 +43,7 @@ import { getActiveOrg } from '../auth/org.js';
 import { getDb } from '../db.js';
 import { serializeRow } from '../util/serialize.js';
 
+import { fetchRecord } from './fetch-record.js';
 import { processPush } from './service.js';
 
 import type { Broker } from './pubsub.js';
@@ -194,11 +195,16 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
 
     const unsubscribe = await deps.broker.subscribe(org.id, (event) => {
       try {
+        // record_updated carries the full serialized row (Blueprint
+        // #18). record_deleted is reserved and not currently emitted;
+        // fall back to {id} if a future producer publishes one.
+        const record =
+          event.type === 'record_updated' ? event.record : { id: event.id };
         ws.send(
           encodeServerMessage({
             type: 'event',
             table: event.table as SyncTable,
-            record: { id: event.id },
+            record,
             cursor: event.version,
           }),
         );
@@ -277,12 +283,21 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
             if (v > highestVersion) highestVersion = v;
             const op = parsed.ops.find((o: PushOp) => o.clientOpId === result.clientOpId);
             if (!op) continue;
+            // Fetch + serialize the canonical post-commit row so the
+            // EVENT broadcast carries the full data — receivers apply
+            // the change in one hop instead of having to re-PULL after
+            // the cursor advances. fetchRecord returns null for tables
+            // not on the sync loop; the {id} fallback keeps EVENT
+            // delivery working in that degraded shape.
+            const row = await fetchRecord(getDb(), op.table, result.id);
+            const record = row ? serializeRow(row) : { id: result.id };
             await deps.broker.publish(org.id, {
               type: 'record_updated',
               orgId: org.id,
               table: op.table,
               id: result.id,
               version: result.version,
+              record,
             });
           }
           if (deviceId && highestVersion > 0n) {

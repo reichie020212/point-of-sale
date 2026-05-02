@@ -18,8 +18,29 @@ import { EventEmitter } from 'node:events';
 
 import { Redis } from 'ioredis';
 
+/**
+ * Cross-instance fan-out event.
+ *
+ * `record_updated` carries the full serialized row so a receiving
+ * device can apply the change in a single hop. Without the record,
+ * the mobile cursor would advance on EVENT but the data would be
+ * fetched lazily on next reconnect — and if the device is offline at
+ * reconnect time the row is *skipped* because the cursor is already
+ * past the row's version. Including the record makes EVENT delivery
+ * atomic with the cursor jump.
+ *
+ * `record_deleted` is reserved for hard-deletes (none today; soft-
+ * deletes ride through `record_updated` with `deleted_at` set).
+ */
 export type SyncFanoutEvent =
-  | { type: 'record_updated'; orgId: string; table: string; id: string; version: string }
+  | {
+      type: 'record_updated';
+      orgId: string;
+      table: string;
+      id: string;
+      version: string;
+      record: Record<string, unknown>;
+    }
   | { type: 'record_deleted'; orgId: string; table: string; id: string; version: string };
 
 export type FanoutListener = (event: SyncFanoutEvent) => void;
