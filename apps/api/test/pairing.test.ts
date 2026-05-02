@@ -88,6 +88,7 @@ test('device pairing', async (t) => {
     email: `${TEST_USER_CLERK_ID}@example.com`,
     name: 'Pairing Tester',
     activeOrgId: org.id,
+    role: 'owner',
   });
 
   let issuedToken = '';

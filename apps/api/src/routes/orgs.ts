@@ -14,6 +14,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getActiveOrg, requireActiveOrg } from '../auth/org.js';
+import { requireRole } from '../auth/role.js';
 import { getDb } from '../db.js';
 import { isValidTimezone } from '../util/timezone.js';
 
@@ -35,7 +36,7 @@ const CreateOrgBody = z.object({
     .min(2)
     .max(40)
     .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'slug must be lowercase alphanumeric/hyphens'),
-  region: z.enum(['US', 'EU']),
+  region: z.enum(['US', 'EU', 'PH']),
   timezone: Timezone.optional(),
 });
 
@@ -99,28 +100,35 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ error: 'insert_failed', message: 'Org row not returned' });
     }
 
+    // Org creator is the owner (HANDOFF §9). Subsequent invitees default
+    // to cashier — managers will be promoted from cashier in a later
+    // Blueprint when team-invite UI lands.
     await db
       .update(users)
-      .set({ activeOrgId: row.id, updatedAt: new Date() })
+      .set({ activeOrgId: row.id, role: 'owner', updatedAt: new Date() })
       .where(eq(users.clerkUserId, request.auth.userId));
 
     return reply.code(201).send({ org: row });
   });
 
-  app.patch('/api/v1/orgs/active', async (request, reply) => {
-    const org = await requireActiveOrg(request, reply);
-    if (!org) return;
-    const parsed = PatchOrgBody.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
-    }
-    const db = getDb();
-    const [updated] = await db
-      .update(organizations)
-      .set({ ...parsed.data, updatedAt: new Date() })
-      .where(eq(organizations.id, org.id))
-      .returning();
-    if (!updated) return reply.code(500).send({ error: 'update_failed' });
-    return reply.send({ org: updated });
-  });
+  app.patch(
+    '/api/v1/orgs/active',
+    { preHandler: requireRole(['owner', 'manager']) },
+    async (request, reply) => {
+      const org = await requireActiveOrg(request, reply);
+      if (!org) return;
+      const parsed = PatchOrgBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
+      }
+      const db = getDb();
+      const [updated] = await db
+        .update(organizations)
+        .set({ ...parsed.data, updatedAt: new Date() })
+        .where(eq(organizations.id, org.id))
+        .returning();
+      if (!updated) return reply.code(500).send({ error: 'update_failed' });
+      return reply.send({ org: updated });
+    },
+  );
 };

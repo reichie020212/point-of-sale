@@ -25,6 +25,7 @@ import {
 import { parse } from 'csv-parse/sync';
 
 import { requireActiveOrg } from '../auth/org.js';
+import { requireRole } from '../auth/role.js';
 import { requireTier } from '../auth/tier.js';
 import { getDb } from '../db.js';
 
@@ -53,7 +54,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/api/v1/imports/products',
-    { preHandler: requireTier(['pro', 'business']) },
+    { preHandler: [requireTier(['pro', 'business']), requireRole(['owner', 'manager'])] },
     async (request, reply) => {
       const org = await requireActiveOrg(request, reply);
       if (!org) return;

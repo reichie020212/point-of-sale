@@ -114,6 +114,7 @@ test('integration suite', async (t) => {
       email: `${TEST_USER_CLERK_ID}@example.com`,
       name: 'Test User',
       activeOrgId: org.id,
+      role: 'owner',
     });
 
     const res = await app.inject({

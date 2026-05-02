@@ -14,6 +14,7 @@ import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { requireActiveOrg } from '../auth/org.js';
+import { requireRole } from '../auth/role.js';
 import { getDb } from '../db.js';
 
 import type { FastifyPluginAsync } from 'fastify';
@@ -137,7 +138,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  app.post('/api/v1/products', async (request, reply) => {
+  app.post('/api/v1/products', { preHandler: requireRole(['owner', 'manager']) }, async (request, reply) => {
     const org = await requireActiveOrg(request, reply);
     if (!org) return;
     const parsed = CreateProductBody.safeParse(request.body);
@@ -188,58 +189,66 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(201).send(result);
   });
 
-  app.patch<{ Params: { id: string } }>('/api/v1/products/:id', async (request, reply) => {
-    const org = await requireActiveOrg(request, reply);
-    if (!org) return;
-    const parsed = PatchProductBody.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
-    }
-    const db = getDb();
-    const updated = await db
-      .update(products)
-      .set({ ...parsed.data, updatedAt: new Date() })
-      .where(
-        and(
-          eq(products.id, request.params.id),
-          eq(products.orgId, org.id),
-          isNull(products.deletedAt),
-        ),
-      )
-      .returning();
-    const row = updated[0];
-    if (!row) return reply.code(404).send({ error: 'not_found' });
-    return reply.send({ product: row });
-  });
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/products/:id',
+    { preHandler: requireRole(['owner', 'manager']) },
+    async (request, reply) => {
+      const org = await requireActiveOrg(request, reply);
+      if (!org) return;
+      const parsed = PatchProductBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
+      }
+      const db = getDb();
+      const updated = await db
+        .update(products)
+        .set({ ...parsed.data, updatedAt: new Date() })
+        .where(
+          and(
+            eq(products.id, request.params.id),
+            eq(products.orgId, org.id),
+            isNull(products.deletedAt),
+          ),
+        )
+        .returning();
+      const row = updated[0];
+      if (!row) return reply.code(404).send({ error: 'not_found' });
+      return reply.send({ product: row });
+    },
+  );
 
-  app.delete<{ Params: { id: string } }>('/api/v1/products/:id', async (request, reply) => {
-    const org = await requireActiveOrg(request, reply);
-    if (!org) return;
-    const db = getDb();
-    const now = new Date();
-    const updated = await db
-      .update(products)
-      .set({ deletedAt: now, updatedAt: now })
-      .where(
-        and(
-          eq(products.id, request.params.id),
-          eq(products.orgId, org.id),
-          isNull(products.deletedAt),
-        ),
-      )
-      .returning({ id: products.id });
-    if (updated.length === 0) return reply.code(404).send({ error: 'not_found' });
-    // Cascade tombstone to variants + modifiers so sync sees them.
-    await db
-      .update(variants)
-      .set({ deletedAt: now, updatedAt: now })
-      .where(and(eq(variants.productId, request.params.id), isNull(variants.deletedAt)));
-    await db
-      .update(modifiers)
-      .set({ deletedAt: now, updatedAt: now })
-      .where(and(eq(modifiers.productId, request.params.id), isNull(modifiers.deletedAt)));
-    return reply.code(204).send();
-  });
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/products/:id',
+    { preHandler: requireRole(['owner', 'manager']) },
+    async (request, reply) => {
+      const org = await requireActiveOrg(request, reply);
+      if (!org) return;
+      const db = getDb();
+      const now = new Date();
+      const updated = await db
+        .update(products)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(products.id, request.params.id),
+            eq(products.orgId, org.id),
+            isNull(products.deletedAt),
+          ),
+        )
+        .returning({ id: products.id });
+      if (updated.length === 0) return reply.code(404).send({ error: 'not_found' });
+      // Cascade tombstone to variants + modifiers so sync sees them.
+      await db
+        .update(variants)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(and(eq(variants.productId, request.params.id), isNull(variants.deletedAt)));
+      await db
+        .update(modifiers)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(and(eq(modifiers.productId, request.params.id), isNull(modifiers.deletedAt)));
+      return reply.code(204).send();
+    },
+  );
 
   void desc; // referenced once we add cursor reverse-paging in W7
 };

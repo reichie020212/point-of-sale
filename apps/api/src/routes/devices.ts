@@ -29,6 +29,7 @@ import {
   hashDeviceToken,
 } from '../auth/device-token.js';
 import { requireActiveOrg } from '../auth/org.js';
+import { requireRole } from '../auth/role.js';
 import { requireTier } from '../auth/tier.js';
 import { getDb } from '../db.js';
 
@@ -88,7 +89,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/api/v1/devices/code',
-    { preHandler: requireTier(['pro', 'business']) },
+    { preHandler: [requireTier(['pro', 'business']), requireRole(['owner', 'manager'])] },
     async (request, reply) => {
       const org = await requireActiveOrg(request, reply);
       if (!org) return;
@@ -177,7 +178,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/devices/:id/revoke',
-    { preHandler: requireTier(['pro', 'business']) },
+    { preHandler: [requireTier(['pro', 'business']), requireRole(['owner', 'manager'])] },
     async (request, reply) => {
       const org = await requireActiveOrg(request, reply);
       if (!org) return;

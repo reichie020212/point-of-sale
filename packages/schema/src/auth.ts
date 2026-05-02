@@ -11,14 +11,26 @@
  * `tier` is the billing tier; gating middleware reads this column to allow
  * or deny sync, dashboard, and multi-location features (HANDOFF §3).
  *
- * TODO(W5): introduce `devices` table for paired mobile hardware. The
- * Week 1 JWT template fakes "session = device" via the Clerk session id.
+ * `userRole` is the §9 RBAC tier: owner = everything, manager = everything
+ * except billing+team, cashier = sell+refund only. Stored on `users` as a
+ * single column because v1 is one-user-per-org; if multi-org membership
+ * lands the role moves to a `memberships` join table.
  */
 import { sql } from 'drizzle-orm';
-import { bigint, index, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  index,
+  numeric,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
-export const region = pgEnum('region', ['US', 'EU']);
+export const region = pgEnum('region', ['US', 'EU', 'PH']);
 export const tier = pgEnum('tier', ['free', 'pro', 'business']);
+export const userRole = pgEnum('user_role', ['owner', 'manager', 'cashier']);
 
 export const organizations = pgTable(
   'organizations',
@@ -39,6 +51,18 @@ export const organizations = pgTable(
      * browser tz.
      */
     timezone: text('timezone').notNull().default('UTC'),
+    /**
+     * ISO 4217 currency code rendered on every receipt and dashboard
+     * total. Default `PHP` because v1 ships PH-only (HANDOFF §9 closed
+     * 2026-05-03). Future regions will set their own at org create.
+     */
+    currency: text('currency').notNull().default('PHP'),
+    /**
+     * Single flat tax rate per org as a percent with three decimals
+     * (e.g. `12.000` for PH VAT). Cart subtotal × rate = tax_cents
+     * computed locally at checkout — no per-item tax classes in v1.
+     */
+    taxRate: numeric('tax_rate', { precision: 5, scale: 3 }).notNull().default('12.000'),
     /**
      * Per-org Lamport clock. Every PUSH batch increments this once and
      * stamps the new value onto every row written in the batch. Sync
@@ -74,6 +98,12 @@ export const users = pgTable(
     activeOrgId: uuid('active_org_id').references(() => organizations.id, {
       onDelete: 'set null',
     }),
+    /**
+     * RBAC role on the user's active org. Org creators get `owner` at
+     * onboarding; invitees default to `cashier`. The API gates catalog,
+     * device, and admin mutations against this column.
+     */
+    role: userRole('role').notNull().default('cashier'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
@@ -92,3 +122,4 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Region = (typeof region.enumValues)[number];
 export type Tier = (typeof tier.enumValues)[number];
+export type UserRole = (typeof userRole.enumValues)[number];

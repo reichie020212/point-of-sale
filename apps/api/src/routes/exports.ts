@@ -22,6 +22,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { requireActiveOrg } from '../auth/org.js';
+import { requireRole } from '../auth/role.js';
 import { getDb } from '../db.js';
 
 import type { FastifyPluginAsync } from 'fastify';
@@ -111,36 +112,41 @@ async function loadOrders(orgId: string): Promise<ExportRow[]> {
 }
 
 export const exportRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/api/v1/exports', async (request, reply) => {
-    const org = await requireActiveOrg(request, reply);
-    if (!org) return;
-    const parsed = ExportBody.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
-    }
-    const { entity, format } = parsed.data;
+  app.post(
+    '/api/v1/exports',
+    { preHandler: requireRole(['owner', 'manager']) },
+    async (request, reply) => {
+      const org = await requireActiveOrg(request, reply);
+      if (!org) return;
+      const parsed = ExportBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues });
+      }
+      const { entity, format } = parsed.data;
 
-    const rows =
-      entity === 'products'
-        ? await loadProducts(org.id)
-        : entity === 'customers'
-          ? await loadCustomers(org.id)
-          : await loadOrders(org.id);
+      const rows =
+        entity === 'products'
+          ? await loadProducts(org.id)
+          : entity === 'customers'
+            ? await loadCustomers(org.id)
+            : await loadOrders(org.id);
 
-    await mkdir(EXPORT_DIR, { recursive: true });
-    const fileId = randomUUID();
-    const filename = `${entity}-${fileId}.${format}`;
-    const filePath = join(EXPORT_DIR, filename);
-    const body = format === 'csv' ? stringify(rows, { header: true }) : JSON.stringify(rows, null, 2);
-    await writeFile(filePath, body, 'utf8');
+      await mkdir(EXPORT_DIR, { recursive: true });
+      const fileId = randomUUID();
+      const filename = `${entity}-${fileId}.${format}`;
+      const filePath = join(EXPORT_DIR, filename);
+      const body =
+        format === 'csv' ? stringify(rows, { header: true }) : JSON.stringify(rows, null, 2);
+      await writeFile(filePath, body, 'utf8');
 
-    return reply.send({
-      url: `/api/v1/exports/${fileId}.${format}`,
-      filename,
-      rows: rows.length,
-      bytes: Buffer.byteLength(body, 'utf8'),
-    });
-  });
+      return reply.send({
+        url: `/api/v1/exports/${fileId}.${format}`,
+        filename,
+        rows: rows.length,
+        bytes: Buffer.byteLength(body, 'utf8'),
+      });
+    },
+  );
 
   app.get<{ Params: { file: string } }>('/api/v1/exports/:file', async (request, reply) => {
     const org = await requireActiveOrg(request, reply);

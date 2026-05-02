@@ -4,12 +4,14 @@ export {
   users,
   region,
   tier,
+  userRole,
   type Organization,
   type NewOrganization,
   type User,
   type NewUser,
   type Region,
   type Tier,
+  type UserRole,
 } from './auth';
 
 // Catalog & inventory
