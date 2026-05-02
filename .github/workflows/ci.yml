@@ -104,3 +104,18 @@ jobs:
 
       - name: Mobile unit tests
         run: pnpm --filter @counter/mobile test
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @counter/web e2e:install
+
+      - name: Web e2e (Playwright)
+        run: pnpm --filter @counter/web e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7

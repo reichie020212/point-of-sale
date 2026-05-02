@@ -1,12 +1,16 @@
 /**
- * Clerk middleware — runs before every request. Public routes (marketing
- * landing, pricing, sign-in/up, the APK download endpoint) are listed
- * explicitly; everything else (the dashboard) requires an authenticated
- * Clerk session.
+ * Clerk middleware — gates `/dashboard` and `/onboarding`.
  *
- * Per CLAUDE.md / HANDOFF §3 (TODO open-question): the Free tier is meant
- * to require no account. This middleware currently gates `/dashboard`,
- * which is correct, but mobile W2+ must NOT inherit a Clerk-first gate.
+ * The matcher is narrow on purpose: marketing (`/`, `/pricing`),
+ * sign-in/up, and the APK download endpoint are public and skip Clerk
+ * entirely. Running Clerk middleware on those paths triggers browser-
+ * only host validation against Clerk's API, which fails in e2e or
+ * dev placeholder-key environments and breaks the page before any
+ * SSR'd HTML reaches the client.
+ *
+ * Per CLAUDE.md / HANDOFF §3 (TODO open-question): the Free tier is
+ * meant to require no account. The mobile app must NOT inherit a
+ * Clerk-first gate either.
  */
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
@@ -17,5 +21,5 @@ export default clerkMiddleware((auth, req) => {
 });
 
 export const config = {
-  matcher: ['/((?!_next|.*\\..*).*)', '/(api|trpc)(.*)'],
+  matcher: ['/dashboard/:path*', '/onboarding/:path*'],
 };

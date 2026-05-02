@@ -9,7 +9,9 @@
     "start": "next start --port 3000",
     "lint": "eslint app middleware.ts --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .next .turbo"
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium",
+    "clean": "rm -rf .next .turbo playwright-report test-results"
   },
   "dependencies": {
     "@clerk/nextjs": "5.7.5",
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@counter/eslint-config": "workspace:*",
     "@counter/tsconfig": "workspace:*",
+    "@playwright/test": "1.48.2",
     "@types/node": "20.12.7",
     "@types/react": "18.3.11",
     "@types/react-dom": "18.3.1",
