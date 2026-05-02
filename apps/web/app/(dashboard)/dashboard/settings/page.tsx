@@ -1,11 +1,12 @@
 /**
  * Org settings.
  *
- * Read-only view of immutable fields (name, slug, region, tier) plus
- * editable fields (timezone). Region and slug are pinned at sign-up
- * and can't be changed without a data migration; tier is changed via
- * the billing flow, not here.
+ * Read-only view of immutable fields (name, slug, region, tier,
+ * currency) plus editable fields (timezone, tax rate). Region, slug,
+ * and currency are pinned at sign-up and can't be changed without a
+ * data migration; tier is changed via the billing flow, not here.
  */
+import { TaxRateSettings } from '../../../../components/TaxRateSettings';
 import { TimezoneSettings } from '../../../../components/TimezoneSettings';
 import { api } from '../../../../lib/api';
 
@@ -14,9 +15,11 @@ interface ActiveOrg {
     id: string;
     name: string;
     slug: string;
-    region: 'US' | 'EU';
+    region: 'US' | 'EU' | 'PH';
     tier: 'free' | 'pro' | 'business';
     timezone: string;
+    currency: string;
+    taxRate: string;
   };
 }
 
@@ -40,11 +43,13 @@ export default async function SettingsPage() {
           <dd className="font-mono tabular text-ink">{org.slug}</dd>
           <dt className="text-ink-3">Region</dt>
           <dd className="font-mono tabular text-ink">{org.region}</dd>
+          <dt className="text-ink-3">Currency</dt>
+          <dd className="font-mono tabular text-ink">{org.currency}</dd>
           <dt className="text-ink-3">Tier</dt>
           <dd className="text-ink">{org.tier}</dd>
         </dl>
         <p className="mt-3 text-xs text-ink-3">
-          Slug and region are pinned at sign-up.
+          Slug, region, and currency are pinned at sign-up.
         </p>
       </section>
 
@@ -56,6 +61,19 @@ export default async function SettingsPage() {
           Reports and the Today/7d/30d/90d ranges all bucket sales in this zone.
         </p>
         <TimezoneSettings current={org.timezone} />
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-3">
+          Tax rate
+        </h2>
+        <p className="mt-2 text-sm text-ink-2">
+          A single flat percentage applied to every sale. PH VAT defaults
+          to <span className="font-mono tabular">12.000%</span>; set this to
+          <span className="font-mono tabular"> 0</span> for tax-exempt
+          businesses. Changes apply to new sales only.
+        </p>
+        <TaxRateSettings current={org.taxRate} />
       </section>
     </div>
   );

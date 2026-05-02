@@ -26,6 +26,7 @@ import { database } from '../src/db';
 import { useCart } from '../src/state/cart';
 import { useDevice } from '../src/state/device';
 import { useLastSale } from '../src/state/last-sale';
+import { useOrgSettings } from '../src/state/org-settings';
 import { enqueue } from '../src/sync/queue';
 
 import type { ReceiptItem, ReceiptOrder } from '@counter/printers';
@@ -41,14 +42,13 @@ export default function PaymentScreen() {
   const clear = useCart((s) => s.clear);
   const setLastSale = useLastSale((s) => s.set);
   const identity = useDevice((s) => s.identity);
+  const taxRate = useOrgSettings((s) => s.settings.taxRate);
+  const currency = useOrgSettings((s) => s.settings.currency);
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // TODO(policy-tax): pull the configured tax rate from the org. Default
-  // 8.25% US per master Blueprint §6 — a placeholder until the rate is
-  // sourced from the active org.
-  const taxCents = Math.round((subtotal - discountCents) * 0.0825);
+  const taxCents = Math.round((subtotal - discountCents) * taxRate);
   const totalCents = subtotal - discountCents + taxCents + tipCents;
 
   const onCash = async () => {
@@ -59,7 +59,7 @@ export default function PaymentScreen() {
     try {
       const charge = await cash.charge({
         amountCents: totalCents,
-        currency: 'USD',
+        currency,
         clientOpId,
       });
       if (!charge.ok) {
@@ -76,6 +76,7 @@ export default function PaymentScreen() {
         tipCents,
         paymentMethod: 'cash',
         storeName: 'Counter',
+        currency,
       };
       const items: ReceiptItem[] = lines.map((l) => ({
         nameSnapshot: l.nameSnapshot,

@@ -40,9 +40,33 @@ const CreateOrgBody = z.object({
   timezone: Timezone.optional(),
 });
 
+/**
+ * Tax rate as a percent string with up to three decimals: `0` to
+ * `99.999`. Stored on `organizations.tax_rate` (numeric(5,3)) so the
+ * mobile cart can do `Math.round(subtotal * (rate / 100))` without
+ * losing precision on PH VAT (12.000) or zero-rated exempt sales.
+ */
+const TaxRate = z
+  .string()
+  .trim()
+  .regex(/^\d{1,2}(\.\d{1,3})?$/, 'Tax rate must be a decimal percent (e.g. 12.000)')
+  .refine((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && n < 100;
+  }, 'Tax rate must be between 0 and 100');
+
+/** ISO 4217 currency code (uppercase, three letters). */
+const Currency = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, 'Currency must be a 3-letter ISO 4217 code');
+
 const PatchOrgBody = z
   .object({
     timezone: Timezone.optional(),
+    taxRate: TaxRate.optional(),
+    currency: Currency.optional(),
   })
   .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'At least one field must be provided',

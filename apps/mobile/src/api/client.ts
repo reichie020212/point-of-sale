@@ -100,6 +100,20 @@ export interface PairResponse {
   token: string;
 }
 
+export interface ActiveOrgSummary {
+  org: {
+    id: string;
+    name: string;
+    slug: string;
+    region: string;
+    tier: string;
+    timezone: string;
+    currency: string;
+    /** Numeric percent as a decimal string, e.g. `'12.000'` for PH VAT. */
+    taxRate: string;
+  };
+}
+
 export const apiCalls = {
   listProducts: (query?: { categoryId?: string; cursor?: string; limit?: number }) =>
     api<{ products: ProductSummary[]; nextCursor: string | null }>('/api/v1/products', {
@@ -115,4 +129,5 @@ export const apiCalls = {
     ),
   pair: (body: { code: string; name?: string; model?: string }) =>
     api<PairResponse>('/api/v1/devices/pair', { method: 'POST', body }),
+  getActiveOrg: () => api<ActiveOrgSummary>('/api/v1/orgs/active'),
 };

@@ -10,21 +10,25 @@
 import { nativeTheme } from '@counter/tokens/native';
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
+import { useOrgSettings } from '../state/org-settings';
+
 
 interface Props extends TextProps {
   cents: number;
-  /** ISO 4217 currency code. Default 'USD'. TODO(policy-region): per-org. */
+  /** ISO 4217 currency code. Defaults to the active org's currency. */
   currency?: string;
   /** Shows a leading +/-, useful for refunds and discounts. */
   signed?: boolean;
 }
 
-export function Money({ cents, currency = 'USD', signed = false, style, ...rest }: Props) {
+export function Money({ cents, currency, signed = false, style, ...rest }: Props) {
+  const orgCurrency = useOrgSettings((s) => s.settings.currency);
+  const code = currency ?? orgCurrency;
   const amount = Math.abs(cents) / 100;
   const sign = signed ? (cents < 0 ? '-' : cents > 0 ? '+' : '') : cents < 0 ? '-' : '';
   const formatted = new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency,
+    currency: code,
     minimumFractionDigits: 2,
   }).format(amount);
   return (

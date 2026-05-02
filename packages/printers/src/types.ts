@@ -19,6 +19,8 @@ export interface ReceiptOrder {
   paymentMethod: 'cash' | 'card' | 'split' | 'mock';
   cashierName?: string;
   storeName?: string;
+  /** ISO 4217 currency code. Receipt formatter routes this to Intl. */
+  currency?: string;
 }
 
 export interface ReceiptItem {

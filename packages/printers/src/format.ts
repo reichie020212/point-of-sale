@@ -12,9 +12,11 @@
  */
 import type { ReceiptItem, ReceiptOrder } from './types';
 
-const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
 export function formatReceiptText(order: ReceiptOrder, items: ReceiptItem[]): string {
+  const fmt = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: order.currency ?? 'PHP',
+  });
   const lines: string[] = [];
   lines.push(order.storeName ?? 'Counter');
   lines.push('');
