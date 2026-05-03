@@ -30,7 +30,7 @@ import { z } from 'zod';
 import { requireRole } from '../auth/role.js';
 import { createCheckoutSession, createPortalSession } from '../billing/checkout.js';
 import { getStripe } from '../billing/stripe.js';
-import { mapWebhookEvent } from '../billing/webhook.js';
+import { mapWebhookEvent, shouldApplyEvent } from '../billing/webhook.js';
 import { getDb } from '../db.js';
 
 import type { Config } from '../config.js';
@@ -188,18 +188,20 @@ export function billingRoutes(opts: BillingRouteOptions): FastifyPluginAsync {
 
         // outcome.kind === 'subscription'
         const db = getDb();
-        // Look up the org id either from the event metadata (preferred)
-        // or fall back to the existing customer linkage so events that
-        // arrive after an org row is rotated still find their target.
-        let orgId = outcome.orgId;
-        if (!orgId) {
-          const [existing] = await db
-            .select({ orgId: billingSubscriptions.orgId })
-            .from(billingSubscriptions)
-            .where(eq(billingSubscriptions.stripeCustomerId, outcome.stripeCustomerId))
-            .limit(1);
-          orgId = existing?.orgId ?? null;
-        }
+        // Look up the existing billing row (if any) so we can both
+        // resolve the orgId via customer linkage AND short-circuit on
+        // a duplicate / stale event before mutating anything.
+        const [existing] = await db
+          .select({
+            orgId: billingSubscriptions.orgId,
+            lastEventId: billingSubscriptions.lastEventId,
+            lastEventAt: billingSubscriptions.lastEventAt,
+          })
+          .from(billingSubscriptions)
+          .where(eq(billingSubscriptions.stripeCustomerId, outcome.stripeCustomerId))
+          .limit(1);
+
+        const orgId = outcome.orgId ?? existing?.orgId ?? null;
         if (!orgId) {
           // No way to identify the Counter org. Acknowledge to stop
           // retries but flag for ops.
@@ -209,6 +211,33 @@ export function billingRoutes(opts: BillingRouteOptions): FastifyPluginAsync {
           );
           return reply.send({ received: true, applied: false, reason: 'no_org' });
         }
+
+        // Idempotency + ordering. Stripe redelivers events on our 5xx
+        // and on manual replay; out-of-order delivery is rare but
+        // possible (e.g. subscription.deleted overtakes subscription.
+        // updated). Drop both cases on the floor — return 200 so
+        // Stripe stops retrying.
+        const decision = shouldApplyEvent(
+          event,
+          existing
+            ? { lastEventId: existing.lastEventId, lastEventAt: existing.lastEventAt }
+            : null,
+        );
+        if (decision === 'duplicate') {
+          request.log.info(
+            { eventId: event.id, orgId },
+            'stripe webhook redelivery — skipping duplicate event',
+          );
+          return reply.send({ received: true, applied: false, reason: 'duplicate' });
+        }
+        if (decision === 'out_of_order') {
+          request.log.info(
+            { eventId: event.id, orgId, lastEventAt: existing?.lastEventAt },
+            'stripe webhook out-of-order — skipping stale event',
+          );
+          return reply.send({ received: true, applied: false, reason: 'out_of_order' });
+        }
+        const eventCreatedAt = new Date(event.created * 1000);
 
         await db.transaction(async (tx: Db) => {
           await tx
@@ -221,6 +250,8 @@ export function billingRoutes(opts: BillingRouteOptions): FastifyPluginAsync {
               tier: outcome.tier,
               currentPeriodEnd: outcome.currentPeriodEnd,
               cancelAtPeriodEnd: outcome.cancelAtPeriodEnd,
+              lastEventId: event.id,
+              lastEventAt: eventCreatedAt,
             })
             .onConflictDoUpdate({
               target: billingSubscriptions.orgId,
@@ -231,6 +262,8 @@ export function billingRoutes(opts: BillingRouteOptions): FastifyPluginAsync {
                 tier: outcome.tier,
                 currentPeriodEnd: outcome.currentPeriodEnd,
                 cancelAtPeriodEnd: outcome.cancelAtPeriodEnd,
+                lastEventId: event.id,
+                lastEventAt: eventCreatedAt,
                 updatedAt: new Date(),
               },
             });

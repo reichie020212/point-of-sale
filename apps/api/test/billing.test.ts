@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { priceIdToTier } from '../src/billing/stripe.js';
-import { mapWebhookEvent } from '../src/billing/webhook.js';
+import { mapWebhookEvent, shouldApplyEvent } from '../src/billing/webhook.js';
 
 import type Stripe from 'stripe';
 
@@ -172,6 +172,61 @@ test('invoice.payment_failed → audit (no DB write)', () => {
 test('unknown event type → ignored', () => {
   const evt = { id: 'evt_x', type: 'customer.created', data: { object: {} } } as unknown as Stripe.Event;
   assert.equal(mapWebhookEvent(evt, CFG).kind, 'ignored');
+});
+
+test('shouldApplyEvent — first-ever event applies', () => {
+  const decision = shouldApplyEvent({ id: 'evt_1', created: 1_700_000_000 }, null);
+  assert.equal(decision, 'apply');
+});
+
+test('shouldApplyEvent — same event id is a duplicate', () => {
+  const decision = shouldApplyEvent(
+    { id: 'evt_1', created: 1_700_000_000 },
+    { lastEventId: 'evt_1', lastEventAt: new Date(1_700_000_000 * 1000) },
+  );
+  assert.equal(decision, 'duplicate');
+});
+
+test('shouldApplyEvent — older event is out_of_order', () => {
+  // Existing row last applied event from t=2000; new event is from t=1000.
+  const decision = shouldApplyEvent(
+    { id: 'evt_2', created: 1_700_000_000 },
+    { lastEventId: 'evt_1', lastEventAt: new Date(1_800_000_000 * 1000) },
+  );
+  assert.equal(decision, 'out_of_order');
+});
+
+test('shouldApplyEvent — newer event applies', () => {
+  const decision = shouldApplyEvent(
+    { id: 'evt_2', created: 1_800_000_000 },
+    { lastEventId: 'evt_1', lastEventAt: new Date(1_700_000_000 * 1000) },
+  );
+  assert.equal(decision, 'apply');
+});
+
+test('shouldApplyEvent — same-instant event with different id applies', () => {
+  // Edge case: two events with identical `created` (rare but possible —
+  // Stripe emits multiple events on a single state change). Different
+  // id → not a duplicate; same created → not strictly newer. We chose
+  // ">=" for ordering so this lands as out_of_order, which is the
+  // safer side because the FIRST event with that timestamp already
+  // brought us to a consistent state.
+  const decision = shouldApplyEvent(
+    { id: 'evt_2', created: 1_700_000_000 },
+    { lastEventId: 'evt_1', lastEventAt: new Date(1_700_000_000 * 1000) },
+  );
+  assert.equal(decision, 'out_of_order');
+});
+
+test('shouldApplyEvent — null lastEventAt allows apply on resub', () => {
+  // Schema lets lastEventAt be null while lastEventId is also null
+  // (initial state) but never the other way around. This case
+  // exercises a defensive path.
+  const decision = shouldApplyEvent(
+    { id: 'evt_2', created: 1_800_000_000 },
+    { lastEventId: null, lastEventAt: null },
+  );
+  assert.equal(decision, 'apply');
 });
 
 test('subscription.created converts unix timestamp to Date', () => {

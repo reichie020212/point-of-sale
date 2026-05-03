@@ -85,6 +85,13 @@
       "when": 1777822623288,
       "tag": "0011_sparkling_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777825489883,
+      "tag": "0012_sudden_proudstar",
+      "breakpoints": true
     }
   ]
 }

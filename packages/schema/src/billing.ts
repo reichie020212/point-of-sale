@@ -82,6 +82,21 @@ export const billingSubscriptions = pgTable(
      * `customer.subscription.deleted` event that fires at expiry.
      */
     cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+    /**
+     * Last Stripe event id applied to this row. Stripe webhooks can
+     * be redelivered (network blip, our 5xx, manual replay), so the
+     * route layer dedupes on this id before mutating. Null only on
+     * the first-ever event for an org.
+     */
+    lastEventId: text('last_event_id'),
+    /**
+     * Stripe `event.created` of the last applied event, as a wall-
+     * clock Date. Subscription events occasionally arrive out of
+     * order (the broker fans deletes before updates if the network
+     * rearranges them); the route layer rejects events older than
+     * this timestamp so a stale event can't undo a fresh state.
+     */
+    lastEventAt: timestamp('last_event_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .default(sql`now()`)
       .notNull(),

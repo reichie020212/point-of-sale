@@ -93,6 +93,33 @@ function tierForStatus(
   return 'free';
 }
 
+/**
+ * Idempotency + ordering check for the route layer. Stripe webhooks
+ * can be redelivered (network blip, our 5xx, manual replay) and can
+ * arrive out of order (broker reorder; rare but documented).
+ *
+ *   - 'apply'        → event is fresh; mutate state
+ *   - 'duplicate'    → same event.id as last applied; skip
+ *   - 'out_of_order' → event.created predates last applied; skip
+ *
+ * Returning 'apply' for `existing == null` means first-ever event
+ * for this customer is always applied. The route uses the
+ * `existing` row's `(stripeCustomerId)` to find the linkage; a
+ * brand-new customer has no row, so `existing` is null.
+ */
+export function shouldApplyEvent(
+  event: Pick<Stripe.Event, 'id' | 'created'>,
+  existing: { lastEventId: string | null; lastEventAt: Date | null } | null,
+): 'apply' | 'duplicate' | 'out_of_order' {
+  if (!existing) return 'apply';
+  if (existing.lastEventId !== null && existing.lastEventId === event.id) return 'duplicate';
+  if (existing.lastEventAt !== null) {
+    const eventAt = new Date(event.created * 1000);
+    if (existing.lastEventAt >= eventAt) return 'out_of_order';
+  }
+  return 'apply';
+}
+
 export function mapWebhookEvent(event: Stripe.Event, cfg: WebhookConfig): WebhookOutcome {
   switch (event.type) {
     case 'customer.subscription.created':
