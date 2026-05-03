@@ -19,12 +19,18 @@ import { UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { DashboardTelemetryGate } from '../../components/DashboardTelemetryGate';
 import { ApiError, api } from '../../lib/api';
 
 import type { ReactNode } from 'react';
 
 interface ActiveOrg {
-  org: { id: string; name: string; tier: 'free' | 'pro' | 'business' };
+  org: {
+    id: string;
+    name: string;
+    tier: 'free' | 'pro' | 'business';
+    telemetryEnabled: boolean;
+  };
 }
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -74,6 +80,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <DashboardTelemetryGate enabled={active.telemetryEnabled ?? true} />
     </div>
   );
 }

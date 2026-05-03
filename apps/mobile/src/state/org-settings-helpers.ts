@@ -10,12 +10,25 @@ export interface OrgSettings {
   currency: string;
   /** IANA timezone, used by future receipt headers. */
   timezone: string;
+  /**
+   * Whether the org's owner has opted into product-analytics
+   * (PostHog). Defaults to `true` — a paired register that hasn't
+   * yet received a fresh PULL of the org row should behave as if
+   * telemetry is on, since opting out should never re-flip on after
+   * the user has explicitly opted out.
+   *
+   * Sentry crash reporting is intentionally NOT gated by this flag:
+   * events are PII-scrubbed at the SDK boundary and operational
+   * debugging shouldn't be at the mercy of a per-org toggle.
+   */
+  telemetryEnabled: boolean;
 }
 
 export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   taxRate: 0.12,
   currency: 'PHP',
   timezone: 'UTC',
+  telemetryEnabled: true,
 };
 
 /**
@@ -44,5 +57,9 @@ export function recordToSettings(
       typeof record.tax_rate === 'string' ? parseTaxRate(record.tax_rate) : current.taxRate,
     currency: typeof record.currency === 'string' ? record.currency : current.currency,
     timezone: typeof record.timezone === 'string' ? record.timezone : current.timezone,
+    telemetryEnabled:
+      typeof record.telemetry_enabled === 'boolean'
+        ? record.telemetry_enabled
+        : current.telemetryEnabled,
   };
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "telemetry_enabled" boolean DEFAULT true NOT NULL;

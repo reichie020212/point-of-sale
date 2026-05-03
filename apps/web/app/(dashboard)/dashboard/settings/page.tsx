@@ -9,6 +9,7 @@
 import { ExportButton } from '../../../../components/ExportButton';
 import { TaxRateSettings } from '../../../../components/TaxRateSettings';
 import { TeamPinSettings } from '../../../../components/TeamPinSettings';
+import { TelemetrySettings } from '../../../../components/TelemetrySettings';
 import { TimezoneSettings } from '../../../../components/TimezoneSettings';
 import { api } from '../../../../lib/api';
 
@@ -22,6 +23,7 @@ interface ActiveOrg {
     timezone: string;
     currency: string;
     taxRate: string;
+    telemetryEnabled: boolean;
   };
 }
 
@@ -92,6 +94,17 @@ export default async function SettingsPage() {
           businesses. Changes apply to new sales only.
         </p>
         <TaxRateSettings current={org.taxRate} />
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-3">
+          Privacy & telemetry
+        </h2>
+        <p className="mt-2 text-sm text-ink-2">
+          Control what Counter sends back about how your shop uses the
+          app. Owner only.
+        </p>
+        <TelemetrySettings current={org.telemetryEnabled ?? true} />
       </section>
 
       <section className="rounded-2xl border border-line bg-surface p-6">

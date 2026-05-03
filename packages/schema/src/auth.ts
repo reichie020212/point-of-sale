@@ -19,6 +19,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   index,
   numeric,
   pgEnum,
@@ -63,6 +64,16 @@ export const organizations = pgTable(
      * computed locally at checkout — no per-item tax classes in v1.
      */
     taxRate: numeric('tax_rate', { precision: 5, scale: 3 }).notNull().default('12.000'),
+    /**
+     * Owner-controlled product-analytics opt-out. Default-on to
+     * preserve the funnel signal during the v1 beta; flipping to
+     * `false` makes the web + mobile PostHog SDKs opt out via
+     * `posthog.opt_out_capturing()` so no further events flow. Sentry
+     * crash reporting is intentionally NOT gated here — events are
+     * PII-scrubbed at the SDK boundary, and disabling them would
+     * leave us blind to bugs in a paying customer's shop.
+     */
+    telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
     /**
      * Per-org Lamport clock. Every PUSH batch increments this once and
      * stamps the new value onto every row written in the batch. Sync

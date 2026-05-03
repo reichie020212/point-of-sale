@@ -67,6 +67,10 @@ export const useOrgSettings = create<OrgSettingsState>((set, get) => ({
           taxRate: typeof parsed.taxRate === 'number' ? parsed.taxRate : DEFAULTS.taxRate,
           currency: typeof parsed.currency === 'string' ? parsed.currency : DEFAULTS.currency,
           timezone: typeof parsed.timezone === 'string' ? parsed.timezone : DEFAULTS.timezone,
+          telemetryEnabled:
+            typeof parsed.telemetryEnabled === 'boolean'
+              ? parsed.telemetryEnabled
+              : DEFAULTS.telemetryEnabled,
         },
         ready: true,
       });
@@ -87,6 +91,10 @@ export const useOrgSettings = create<OrgSettingsState>((set, get) => ({
         taxRate: parseTaxRate(org.taxRate),
         currency: org.currency,
         timezone: org.timezone,
+        telemetryEnabled:
+          typeof org.telemetryEnabled === 'boolean'
+            ? org.telemetryEnabled
+            : DEFAULTS.telemetryEnabled,
       };
       set({ settings: next, ready: true });
       await SecureStore.setItemAsync(SETTINGS_KEY, JSON.stringify(next));

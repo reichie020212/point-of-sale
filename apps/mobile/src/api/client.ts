@@ -111,6 +111,8 @@ export interface ActiveOrgSummary {
     currency: string;
     /** Numeric percent as a decimal string, e.g. `'12.000'` for PH VAT. */
     taxRate: string;
+    /** Owner-controlled product-analytics opt-in. */
+    telemetryEnabled?: boolean;
   };
 }
 

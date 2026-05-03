@@ -35,7 +35,8 @@
           "ios": { "deploymentTarget": "15.0" },
           "android": { "minSdkVersion": 23 }
         }
-      ]
+      ],
+      "@sentry/react-native/expo"
     ],
     "experiments": {
       "typedRoutes": true

@@ -56,6 +56,13 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/counter_test
       REDIS_URL: redis://localhost:6379
+      # Sentry source-map upload: runs only when the secrets are
+      # populated in repo settings. Without them, withSentryConfig
+      # silently skips the upload and the build still succeeds.
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SENTRY_RELEASE: ${{ github.sha }}
 
     steps:
       - uses: actions/checkout@v4

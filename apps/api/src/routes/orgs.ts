@@ -68,6 +68,13 @@ const PatchOrgBody = z
     timezone: Timezone.optional(),
     taxRate: TaxRate.optional(),
     currency: Currency.optional(),
+    /**
+     * Owner-controlled telemetry opt-out. Boolean flag synced via the
+     * orgs-on-sync EVENT loop so every paired register reactively
+     * honors the new preference. Gates PostHog only — Sentry crash
+     * reporting remains on (PII-scrubbed at the SDK boundary).
+     */
+    telemetryEnabled: z.boolean().optional(),
   })
   .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'At least one field must be provided',

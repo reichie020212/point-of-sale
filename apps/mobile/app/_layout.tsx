@@ -9,6 +9,11 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 
 import { SyncBanner } from '../src/components/SyncBanner';
+import {
+  applyTelemetryPreference,
+  identifyDevice,
+} from '../src/observability/posthog';
+import { initSentry, Sentry } from '../src/observability/sentry';
 import { useDevice } from '../src/state/device';
 import { useOrgSettings } from '../src/state/org-settings';
 
@@ -17,7 +22,12 @@ import { useOrgSettings } from '../src/state/org-settings';
 // JetBrains Mono" non-negotiable.
 void SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+// Sentry init runs at module load (before React mounts) so the global
+// error handler is wired up in time to catch crashes from the very
+// first paint. No-op when EXPO_PUBLIC_SENTRY_DSN is unset.
+initSentry();
+
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -36,6 +46,7 @@ export default function RootLayout() {
   const identity = useDevice((s) => s.identity);
   const hydrateOrgSettings = useOrgSettings((s) => s.hydrate);
   const refreshOrgSettings = useOrgSettings((s) => s.refresh);
+  const telemetryEnabled = useOrgSettings((s) => s.settings.telemetryEnabled);
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
@@ -49,6 +60,16 @@ export default function RootLayout() {
     // usable offline.
     if (identity) void refreshOrgSettings();
   }, [identity, refreshOrgSettings]);
+  useEffect(() => {
+    // Identify the register to PostHog whenever the device pairs.
+    identifyDevice(identity?.deviceId ?? null, identity?.orgId ?? null);
+  }, [identity]);
+  useEffect(() => {
+    // Honor the org's telemetry preference reactively. The synced
+    // org row carries the flag; useOrgSettings.applyFromRecord lands
+    // it here on every EVENT.
+    applyTelemetryPreference(telemetryEnabled);
+  }, [telemetryEnabled]);
   useEffect(() => {
     if (fontsLoaded) void SplashScreen.hideAsync();
   }, [fontsLoaded]);
@@ -69,3 +90,8 @@ export default function RootLayout() {
     </View>
   );
 }
+
+// `Sentry.wrap` adds an ErrorBoundary at the React root so a JS crash
+// renders Sentry's fallback instead of leaving the cashier on a
+// frozen white screen. Acts as a no-op when the SDK isn't configured.
+export default Sentry.wrap(RootLayout);

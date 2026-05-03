@@ -276,8 +276,8 @@ eas build --platform ios --profile production           # TestFlight + App Store
 
 | Concern           | Tool                                                                    |
 | ----------------- | ----------------------------------------------------------------------- |
-| Error tracking    | Sentry (api + web shipped, mobile in Phase B)                           |
-| Product analytics | PostHog (web shipped, mobile in Phase B)                                |
+| Error tracking    | Sentry (api + web + mobile, JS-level on mobile until EAS build pipeline) |
+| Product analytics | PostHog (web + mobile, opt-out toggle in /dashboard/settings)            |
 | Logs              | Fly logs → Logtail / Axiom (long-term retention)                        |
 | Uptime            | Better Uptime / Cronitor probing `/healthz` (liveness) and `/readyz` (DB + broker) |
 
@@ -305,14 +305,31 @@ redacted from every event before transport. See
 
 #### PostHog env vars
 
-| Var                            | Where      | Purpose                                       |
-| ------------------------------ | ---------- | --------------------------------------------- |
-| `NEXT_PUBLIC_POSTHOG_KEY`      | Web client | Project API key                               |
-| `NEXT_PUBLIC_POSTHOG_HOST`     | Web client | Defaults to `https://us.i.posthog.com`        |
+| Var                            | Where         | Purpose                                       |
+| ------------------------------ | ------------- | --------------------------------------------- |
+| `NEXT_PUBLIC_POSTHOG_KEY`      | Web client    | Project API key                               |
+| `NEXT_PUBLIC_POSTHOG_HOST`     | Web client    | Defaults to `https://us.i.posthog.com`        |
+| `EXPO_PUBLIC_POSTHOG_KEY`      | Mobile        | Project API key (Babel-inlined at build time) |
+| `EXPO_PUBLIC_POSTHOG_HOST`     | Mobile        | Defaults to `https://us.i.posthog.com`        |
+| `EXPO_PUBLIC_SENTRY_DSN`       | Mobile        | Mobile-specific Sentry DSN                    |
+| `EXPO_PUBLIC_SENTRY_ENVIRONMENT` | Mobile      | `production` / `staging`                      |
 
-Identify-on-sign-in uses Clerk's `userId` (no email pushed). The web
-funnel events to wire next: `pricing_viewed`, `signup_completed`,
-`onboarding_completed`, `checkout_started`, `subscription_activated`.
+Web identifies on Clerk sign-in by Clerk `userId` (no email pushed).
+Mobile identifies on device pairing by `deviceId` because mobile has
+no Clerk session — the cashier signs in with a 4-digit PIN.
+
+#### Telemetry opt-out
+
+Owners can disable PostHog product analytics from `/dashboard/settings`
+→ "Privacy & telemetry". The flag is a boolean column on
+`organizations` synced through the existing orgs-on-sync EVENT loop;
+mobile registers honor the flip reactively via
+`posthog.optOut()` / `posthog.optIn()`.
+
+Sentry crash reporting is intentionally NOT gated by this toggle:
+events are PII-scrubbed at the SDK boundary, and operational
+debugging shouldn't be at the mercy of a per-org preference. The
+settings UI text says so explicitly.
 
 ### 2.10 Stripe (billing)
 

@@ -78,6 +78,13 @@
       "when": 1777820200625,
       "tag": "0010_milky_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777822623288,
+      "tag": "0011_sparkling_wolfpack",
+      "breakpoints": true
     }
   ]
 }
