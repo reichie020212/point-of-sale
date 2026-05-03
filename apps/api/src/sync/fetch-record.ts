@@ -29,6 +29,7 @@ import {
   products,
   refunds,
   shifts,
+  users,
   variants,
   type Db,
 } from '@counter/schema';
@@ -104,6 +105,10 @@ export async function fetchRecord(
         .from(loyaltyPunches)
         .where(eq(loyaltyPunches.id, id))
         .limit(1);
+      return row ?? null;
+    }
+    case 'users': {
+      const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);
       return row ?? null;
     }
     case 'devices':

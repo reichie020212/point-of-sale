@@ -7,6 +7,7 @@
  * data migration; tier is changed via the billing flow, not here.
  */
 import { TaxRateSettings } from '../../../../components/TaxRateSettings';
+import { TeamPinSettings } from '../../../../components/TeamPinSettings';
 import { TimezoneSettings } from '../../../../components/TimezoneSettings';
 import { api } from '../../../../lib/api';
 
@@ -23,8 +24,24 @@ interface ActiveOrg {
   };
 }
 
+interface TeamUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: 'owner' | 'manager' | 'cashier';
+  hasPin: boolean;
+}
+
 export default async function SettingsPage() {
   const { org } = await api<ActiveOrg>('/api/v1/orgs/active');
+  let team: TeamUser[] = [];
+  try {
+    const res = await api<{ users: TeamUser[] }>('/api/v1/users');
+    team = res.users;
+  } catch {
+    // Surfacing this as an error would block the rest of the page;
+    // settings remains usable without team data.
+  }
   return (
     <div className="space-y-6">
       <header>
@@ -74,6 +91,18 @@ export default async function SettingsPage() {
           businesses. Changes apply to new sales only.
         </p>
         <TaxRateSettings current={org.taxRate} />
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-3">
+          Team PINs
+        </h2>
+        <p className="mt-2 text-sm text-ink-2">
+          Each cashier signs in to the mobile register with a 4-digit
+          PIN. PINs sync to every paired device so sign-in works
+          offline. Owner / manager only.
+        </p>
+        <TeamPinSettings team={team} />
       </section>
     </div>
   );

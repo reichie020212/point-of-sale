@@ -31,6 +31,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Money } from '../src/components/Money';
 import { database } from '../src/db';
 import { useLoyalty } from '../src/hooks/useLoyalty';
+import { useAuth } from '../src/state/auth';
 import { useCart } from '../src/state/cart';
 import { useDevice } from '../src/state/device';
 import { useLastSale } from '../src/state/last-sale';
@@ -52,6 +53,7 @@ export default function PaymentScreen() {
   const clear = useCart((s) => s.clear);
   const setLastSale = useLastSale((s) => s.set);
   const identity = useDevice((s) => s.identity);
+  const activeUser = useAuth((s) => s.activeUser);
   const taxRate = useOrgSettings((s) => s.settings.taxRate);
   const currency = useOrgSettings((s) => s.settings.currency);
 
@@ -176,6 +178,7 @@ export default function PaymentScreen() {
           raw.customer_id = customerId;
           raw.shift_id = null;
           raw.device_id = identity?.deviceId ?? '';
+          raw.cashier_id = activeUser?.id ?? null;
           raw.status = 'completed';
           raw.payment_method = 'cash';
           raw.subtotal_cents = subtotal;
@@ -245,6 +248,7 @@ export default function PaymentScreen() {
         payload: {
           id: orderId,
           customerId,
+          cashierId: activeUser?.id ?? null,
           paymentMethod: 'cash',
           subtotalCents: subtotal,
           taxCents,

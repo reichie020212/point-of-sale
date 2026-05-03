@@ -31,6 +31,7 @@ import {
   products,
   refunds,
   shifts,
+  users,
   variants,
   modifiers,
 } from '@counter/schema';
@@ -524,6 +525,17 @@ const SUPPORTED_PULLS: Partial<
       .from(loyaltyPunches)
       .where(and(eq(loyaltyPunches.orgId, orgId), gt(loyaltyPunches.version, cursor)))
       .orderBy(asc(loyaltyPunches.version))
+      .limit(PULL_PAGE_SIZE),
+  // Users sync for offline PIN sign-in. Org-scoped via active_org_id;
+  // a user who switches active org would simply appear under the new
+  // org's pull. We sync the full row (including pin_hash) — the
+  // device is already paired and trusted.
+  users: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(users)
+      .where(and(eq(users.activeOrgId, orgId), gt(users.version, cursor)))
+      .orderBy(asc(users.version))
       .limit(PULL_PAGE_SIZE),
   // The org row is one-row-per-device-session; emit it on HELLO if
   // its `version` is ahead of the device's cursor. This is what

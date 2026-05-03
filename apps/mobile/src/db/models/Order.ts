@@ -10,6 +10,7 @@ export class Order extends Model {
   @text('customer_id') customerId!: string | null;
   @text('shift_id') shiftId!: string | null;
   @text('device_id') deviceId!: string;
+  @text('cashier_id') cashierId!: string | null;
   @text('status') status!: string;
   @text('payment_method') paymentMethod!: string;
   @field('subtotal_cents') subtotalCents!: number;

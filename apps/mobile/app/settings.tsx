@@ -6,10 +6,11 @@
  * the local token and pushes them to /pair).
  */
 import { nativeTheme } from '@counter/tokens/native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { clearDeviceToken } from '../src/api/client';
+import { useAuth } from '../src/state/auth';
 import { useDevice } from '../src/state/device';
 import { useSyncStatus } from '../src/state/sync-status';
 
@@ -18,15 +19,38 @@ export default function SettingsScreen() {
   const lastPullAt = useSyncStatus((s) => s.lastPullAt);
   const identity = useDevice((s) => s.identity);
   const setIdentity = useDevice((s) => s.set);
+  const activeUser = useAuth((s) => s.activeUser);
+  const signOut = useAuth((s) => s.signOut);
 
   const onUnpair = async () => {
+    signOut();
     await clearDeviceToken();
     setIdentity(null);
+  };
+
+  const onSignOut = () => {
+    signOut();
+    router.replace('/');
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Settings</Text>
+
+      {activeUser && (
+        <Section title="Signed in">
+          <Row label="Cashier" value={activeUser.name ?? 'Unnamed'} />
+          <Row label="Role" value={activeUser.role} />
+          <Pressable
+            style={styles.unpair}
+            onPress={onSignOut}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <Text style={styles.unpairText}>Sign out</Text>
+          </Pressable>
+        </Section>
+      )}
 
       <Section title="Device">
         {identity ? (

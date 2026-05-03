@@ -112,15 +112,33 @@ export const users = pgTable(
      * device, and admin mutations against this column.
      */
     role: userRole('role').notNull().default('cashier'),
+    /**
+     * Salted SHA-256 of the user's 4-digit PIN. NULL means the user
+     * has not set a PIN yet — they cannot sign in to the mobile
+     * register until an owner/manager sets one. The hash is small
+     * enough to sync to every paired device (so mobile sign-in works
+     * offline) without leaking anything sensitive: the unsalted
+     * 4-digit space is brute-forceable, but the salt is per-deploy
+     * and never leaves the API process.
+     */
+    pinHash: text('pin_hash'),
+    /**
+     * Lamport version stamp for sync replication. Mobile devices
+     * mirror this row so they can verify PINs and stamp transactions
+     * with the active cashier even while offline.
+     */
+    version: bigint('version', { mode: 'bigint' }).notNull().default(sql`0`),
     createdAt: timestamp('created_at', { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => ({
     clerkIdIdx: index('users_clerk_user_id_idx').on(table.clerkUserId),
+    activeOrgIdx: index('users_active_org_idx').on(table.activeOrgId, table.version),
   }),
 );
 

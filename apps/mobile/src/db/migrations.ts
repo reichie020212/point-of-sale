@@ -2,33 +2,47 @@
  * WatermelonDB schema migrations.
  *
  * Each entry tells Watermelon how to mutate an existing local DB
- * forward to a new schema version. A user with v1 installed and v2
- * shipped will run the v2 migration on next launch — preserving any
- * locally-queued sales that haven't synced yet.
+ * forward to a new schema version. A user with v1 installed and v4
+ * shipped will run v2 → v3 → v4 in order on next launch — preserving
+ * any locally-queued sales that haven't synced yet.
  *
- * v2: add `refunds` table for the Refund Flow milestone. Refunds are
- * created on-device (offline-first), enqueued, and reconciled with
- * server-issued refund rows on PULL.
+ * Watermelon expects migrations sorted *descending* by `toVersion`
+ * (newest first); it walks the list backwards to find the next step
+ * to apply.
+ *
+ * v2: refunds table for the Refund Flow milestone.
+ * v3: loyalty_programs + loyalty_punches for the Punchcard milestone.
+ * v4: users table for the PIN sign-in milestone — mirrors the server
+ *     `users` row so PIN verification works offline.
  */
-import { schemaMigrations, createTable } from '@nozbe/watermelondb/Schema/migrations';
+import {
+  schemaMigrations,
+  createTable,
+  addColumns,
+} from '@nozbe/watermelondb/Schema/migrations';
 
 export const migrations = schemaMigrations({
   migrations: [
     {
-      toVersion: 2,
+      toVersion: 4,
       steps: [
         createTable({
-          name: 'refunds',
+          name: 'users',
           columns: [
             { name: 'server_id', type: 'string', isIndexed: true },
-            { name: 'client_op_id', type: 'string', isIndexed: true },
-            { name: 'org_id', type: 'string', isIndexed: true },
-            { name: 'order_id', type: 'string', isIndexed: true },
-            { name: 'amount_cents', type: 'number' },
-            { name: 'reason', type: 'string', isOptional: true },
-            { name: 'processed_by_id', type: 'string', isOptional: true },
-            { name: 'payment_reference', type: 'string', isOptional: true },
-            { name: 'created_at', type: 'number' },
+            { name: 'active_org_id', type: 'string', isIndexed: true },
+            { name: 'name', type: 'string', isOptional: true },
+            { name: 'email', type: 'string', isOptional: true },
+            { name: 'role', type: 'string' },
+            { name: 'pin_hash', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'updated_at', type: 'number' },
+            { name: 'deleted_at', type: 'number', isOptional: true },
+          ],
+        }),
+        addColumns({
+          table: 'orders',
+          columns: [
+            { name: 'cashier_id', type: 'string', isOptional: true, isIndexed: true },
           ],
         }),
       ],
@@ -63,6 +77,25 @@ export const migrations = schemaMigrations({
             { name: 'is_redemption', type: 'boolean' },
             { name: 'created_at', type: 'number' },
             { name: 'deleted_at', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 2,
+      steps: [
+        createTable({
+          name: 'refunds',
+          columns: [
+            { name: 'server_id', type: 'string', isIndexed: true },
+            { name: 'client_op_id', type: 'string', isIndexed: true },
+            { name: 'org_id', type: 'string', isIndexed: true },
+            { name: 'order_id', type: 'string', isIndexed: true },
+            { name: 'amount_cents', type: 'number' },
+            { name: 'reason', type: 'string', isOptional: true },
+            { name: 'processed_by_id', type: 'string', isOptional: true },
+            { name: 'payment_reference', type: 'string', isOptional: true },
+            { name: 'created_at', type: 'number' },
           ],
         }),
       ],

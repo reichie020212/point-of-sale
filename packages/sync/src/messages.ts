@@ -33,6 +33,7 @@ export const SYNC_TABLES = [
   'organizations',
   'loyalty_programs',
   'loyalty_punches',
+  'users',
 ] as const;
 
 export type SyncTable = (typeof SYNC_TABLES)[number];

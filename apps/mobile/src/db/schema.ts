@@ -14,7 +14,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 3,
+  version: 4,
   tables: [
     tableSchema({
       name: 'categories',
@@ -90,6 +90,7 @@ export const schema = appSchema({
         { name: 'customer_id', type: 'string', isOptional: true },
         { name: 'shift_id', type: 'string', isOptional: true },
         { name: 'device_id', type: 'string' },
+        { name: 'cashier_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'status', type: 'string' },
         { name: 'payment_method', type: 'string' },
         { name: 'subtotal_cents', type: 'number' },
@@ -182,6 +183,19 @@ export const schema = appSchema({
         { name: 'order_item_id', type: 'string', isOptional: true },
         { name: 'is_redemption', type: 'boolean' },
         { name: 'created_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true },
+      ],
+    }),
+    tableSchema({
+      name: 'users',
+      columns: [
+        { name: 'server_id', type: 'string', isIndexed: true },
+        { name: 'active_org_id', type: 'string', isIndexed: true },
+        { name: 'name', type: 'string', isOptional: true },
+        { name: 'email', type: 'string', isOptional: true },
+        { name: 'role', type: 'string' },
+        { name: 'pin_hash', type: 'string', isOptional: true, isIndexed: true },
+        { name: 'updated_at', type: 'number' },
         { name: 'deleted_at', type: 'number', isOptional: true },
       ],
     }),

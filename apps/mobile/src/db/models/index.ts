@@ -17,4 +17,5 @@ export { OrderItem } from './OrderItem';
 export { Product } from './Product';
 export { Refund } from './Refund';
 export { Shift } from './Shift';
+export { User } from './User';
 export { Variant } from './Variant';

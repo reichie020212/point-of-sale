@@ -38,6 +38,7 @@ import {
 import { Money } from '../../src/components/Money';
 import { database } from '../../src/db';
 import { useOrderDetail } from '../../src/hooks/useOrderDetail';
+import { useAuth } from '../../src/state/auth';
 import { useDevice } from '../../src/state/device';
 import {
   clampQty,
@@ -54,6 +55,7 @@ export default function RefundScreen() {
   const orderId = typeof params.id === 'string' ? params.id : undefined;
   const { detail, loading } = useOrderDetail(orderId);
   const identity = useDevice((s) => s.identity);
+  const activeUser = useAuth((s) => s.activeUser);
 
   const [selection, setSelection] = useState<RefundSelection>({ qtyById: {} });
   const [reason, setReason] = useState('');
@@ -152,7 +154,7 @@ export default function RefundScreen() {
           raw.order_id = detail.id;
           raw.amount_cents = refundCents;
           raw.reason = reason.trim();
-          raw.processed_by_id = null;
+          raw.processed_by_id = activeUser?.id ?? null;
           raw.payment_reference = null;
           raw.created_at = Date.now();
         });
@@ -197,6 +199,7 @@ export default function RefundScreen() {
           orderId: detail.id,
           amountCents: refundCents,
           reason: reason.trim(),
+          processedById: activeUser?.id ?? null,
           clientOpId: refundClientOpId,
         },
         asDelta: false,

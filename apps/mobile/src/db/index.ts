@@ -25,6 +25,7 @@ import {
   Product,
   Refund,
   Shift,
+  User,
   Variant,
 } from './models';
 import { schema } from './schema';
@@ -53,6 +54,7 @@ export const database = new Database({
     Product,
     Refund,
     Shift,
+    User,
     Variant,
   ],
 });

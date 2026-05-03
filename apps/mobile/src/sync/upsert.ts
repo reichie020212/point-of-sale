@@ -45,6 +45,7 @@ const SUPPORTED: ReadonlySet<SyncTable> = new Set([
   'products',
   'refunds',
   'shifts',
+  'users',
   'variants',
 ]);
 
@@ -95,6 +96,7 @@ const COLUMNS: Record<SyncTable, string[]> = {
     'customer_id',
     'shift_id',
     'device_id',
+    'cashier_id',
     'status',
     'payment_method',
     'subtotal_cents',
@@ -164,6 +166,15 @@ const COLUMNS: Record<SyncTable, string[]> = {
     'order_item_id',
     'is_redemption',
     'created_at',
+    'deleted_at',
+  ],
+  users: [
+    'active_org_id',
+    'name',
+    'email',
+    'role',
+    'pin_hash',
+    'updated_at',
     'deleted_at',
   ],
   // Devices not mirrored locally; treat as no-op.
