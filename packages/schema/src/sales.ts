@@ -130,8 +130,30 @@ export const refunds = pgTable(
     orderId: uuid('order_id')
       .notNull()
       .references(() => orders.id, { onDelete: 'restrict' }),
-    /** Always positive; full or partial refund of an order's totalCents. */
+    /**
+     * Canonical refund total: `subtotalCents + taxCents + tipCents - discountCents`.
+     * Always positive. The component breakdown below lets reports answer
+     * "how much tax was returned this month" without rerunning the math
+     * against the original order.
+     */
     amountCents: integer('amount_cents').notNull(),
+    /** Sum of refunded line subtotals (qty × unit price), in cents. */
+    subtotalCents: integer('subtotal_cents').notNull().default(0),
+    /**
+     * Tax portion of this refund — pro-rated by subtotal share, except
+     * on the closing-out refund which captures the floor() remainder so
+     * `Σ refunds.tax_cents = order.tax_cents` once fully refunded.
+     */
+    taxCents: integer('tax_cents').notNull().default(0),
+    /**
+     * Tip portion. Tipping in PH is a gesture for the service rendered,
+     * so it's all-or-nothing: zero on partial refunds, full
+     * `order.tip_cents` on the refund that closes out the order.
+     */
+    tipCents: integer('tip_cents').notNull().default(0),
+    /** Pro-rated share of the order-level discount that's "un-applied"
+     *  by this refund — reduces the amount returned to the customer. */
+    discountCents: integer('discount_cents').notNull().default(0),
     /** Free-text reason; required at the UI layer (cashier types it before submit). */
     reason: text('reason'),
     processedById: uuid('processed_by_id').references(() => users.id, { onDelete: 'set null' }),

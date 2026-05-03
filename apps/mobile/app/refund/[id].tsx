@@ -43,8 +43,8 @@ import { useAuth } from '../../src/state/auth';
 import { useDevice } from '../../src/state/device';
 import {
   clampQty,
-  computeRefundCents,
-  isFullRefund,
+  computeRefundBreakdown,
+  selectAll as buildSelectAll,
   validateRefund,
   type RefundableLine,
   type RefundSelection,
@@ -83,8 +83,22 @@ export default function RefundScreen() {
     }));
   }, [detail]);
 
-  const refundCents = computeRefundCents(lines, selection);
-  const full = lines.length > 0 && isFullRefund(lines, selection);
+  const breakdown = useMemo(() => {
+    if (!detail) return null;
+    return computeRefundBreakdown(
+      {
+        subtotalCents: detail.subtotalCents,
+        taxCents: detail.taxCents,
+        tipCents: detail.tipCents,
+        discountCents: detail.discountCents,
+      },
+      lines,
+      selection,
+      detail.priorRefunds,
+    );
+  }, [detail, lines, selection]);
+
+  const refundCents = breakdown?.amountCents ?? 0;
 
   if (!orderId) {
     return (
@@ -118,6 +132,9 @@ export default function RefundScreen() {
     });
   };
 
+  const onSelectAll = () => setSelection(buildSelectAll(lines));
+  const onClear = () => setSelection({ qtyById: {} });
+
   const onSubmit = async () => {
     setError(null);
     const v = validateRefund(lines, selection, reason);
@@ -125,12 +142,20 @@ export default function RefundScreen() {
       setError(v.reason ?? 'Invalid refund');
       return;
     }
+    if (!breakdown) {
+      setError('Refund breakdown unavailable');
+      return;
+    }
     setBusy(true);
     try {
       const refundClientOpId = makeOpId('refund');
       const orgId = identity?.orgId ?? '';
       const deviceId = identity?.deviceId ?? '';
-      const newStatus = full ? 'refunded' : 'partially_refunded';
+      // Closing-out is the source-of-truth for status: a single full
+      // refund OR the last of multiple partials both flip the order
+      // to `refunded`. The server recomputes from cumulative refund
+      // sums, so this is just the optimistic local guess.
+      const newStatus = breakdown.closesOut ? 'refunded' : 'partially_refunded';
 
       // Build per-line restock movements first so we can write them
       // and enqueue them with stable ids.
@@ -160,7 +185,11 @@ export default function RefundScreen() {
           raw.client_op_id = refundClientOpId;
           raw.org_id = orgId;
           raw.order_id = detail.id;
-          raw.amount_cents = refundCents;
+          raw.amount_cents = breakdown.amountCents;
+          raw.subtotal_cents = breakdown.subtotalCents;
+          raw.tax_cents = breakdown.taxCents;
+          raw.tip_cents = breakdown.tipCents;
+          raw.discount_cents = breakdown.discountCents;
           raw.reason = reason.trim();
           raw.processed_by_id = activeUser?.id ?? null;
           raw.payment_reference = null;
@@ -205,7 +234,11 @@ export default function RefundScreen() {
         payload: {
           id: refundId,
           orderId: detail.id,
-          amountCents: refundCents,
+          amountCents: breakdown.amountCents,
+          subtotalCents: breakdown.subtotalCents,
+          taxCents: breakdown.taxCents,
+          tipCents: breakdown.tipCents,
+          discountCents: breakdown.discountCents,
           reason: reason.trim(),
           processedById: activeUser?.id ?? null,
           clientOpId: refundClientOpId,
@@ -247,7 +280,27 @@ export default function RefundScreen() {
       </Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Items</Text>
+        <View style={styles.itemsHeader}>
+          <Text style={styles.cardTitle}>Items</Text>
+          <View style={styles.itemsHeaderActions}>
+            <Pressable
+              onPress={onSelectAll}
+              style={styles.headerBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Select all items"
+            >
+              <Text style={styles.headerBtnText}>Select all</Text>
+            </Pressable>
+            <Pressable
+              onPress={onClear}
+              style={styles.headerBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Clear selection"
+            >
+              <Text style={styles.headerBtnText}>Clear</Text>
+            </Pressable>
+          </View>
+        </View>
         {lines.map((line) => {
           const qty = selection.qtyById[line.id] ?? 0;
           return (
@@ -294,10 +347,34 @@ export default function RefundScreen() {
         />
       </View>
 
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Refund total</Text>
-        <Money cents={refundCents} style={styles.totalValue} />
-      </View>
+      {breakdown && (
+        <View style={styles.summaryCard}>
+          <Text style={styles.cardTitle}>Refund summary</Text>
+          <BreakdownRow label="Items" value={breakdown.subtotalCents} />
+          {detail.discountCents > 0 && (
+            <BreakdownRow
+              label="Discount reversed"
+              value={breakdown.discountCents}
+              negative
+            />
+          )}
+          {detail.taxCents > 0 && (
+            <BreakdownRow label="Tax returned" value={breakdown.taxCents} />
+          )}
+          {detail.tipCents > 0 && (
+            <BreakdownRow
+              label="Tip"
+              value={breakdown.tipCents}
+              hint={breakdown.closesOut ? undefined : 'Held — only refunds on full return'}
+            />
+          )}
+          <View style={styles.summaryDivider} />
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total refund</Text>
+            <Money cents={refundCents} style={styles.totalValue} />
+          </View>
+        </View>
+      )}
 
       {error && <Text style={styles.error}>{error}</Text>}
 
@@ -310,10 +387,35 @@ export default function RefundScreen() {
         accessibilityRole="button"
       >
         <Text style={styles.submitText}>
-          {busy ? 'Processing…' : full ? 'Refund full order' : 'Refund selected'}
+          {busy ? 'Processing…' : breakdown?.closesOut ? 'Refund full order' : 'Refund selected'}
         </Text>
       </Pressable>
     </ScrollView>
+  );
+}
+
+function BreakdownRow({
+  label,
+  value,
+  hint,
+  negative,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+  negative?: boolean;
+}) {
+  return (
+    <View style={styles.summaryRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.summaryLabel}>{label}</Text>
+        {hint && <Text style={styles.summaryHint}>{hint}</Text>}
+      </View>
+      <Text style={styles.summaryValue}>
+        {negative ? '−' : ''}
+        <Money cents={value} />
+      </Text>
+    </View>
   );
 }
 
@@ -383,18 +485,48 @@ const styles = StyleSheet.create({
     backgroundColor: nativeTheme.colors.bg,
     textAlignVertical: 'top' as const,
   },
-  totalCard: {
+  summaryCard: {
     backgroundColor: nativeTheme.colors.surface,
     borderColor: nativeTheme.colors.line,
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,
+    gap: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  summaryLabel: { color: nativeTheme.colors.ink2, fontSize: 14 },
+  summaryHint: { color: nativeTheme.colors.ink3, fontSize: 11, marginTop: 2 },
+  summaryValue: { color: nativeTheme.colors.ink, fontSize: 14 },
+  summaryDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: nativeTheme.colors.line,
+    marginVertical: 4,
+  },
+  totalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   totalLabel: { color: nativeTheme.colors.ink, fontSize: 16, fontWeight: '600' as const },
   totalValue: { fontSize: 22 },
+  itemsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  itemsHeaderActions: { flexDirection: 'row', gap: 8 },
+  headerBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: nativeTheme.colors.line2,
+  },
+  headerBtnText: { color: nativeTheme.colors.ink, fontSize: 12 },
   error: { color: nativeTheme.colors.bad, fontSize: 14 },
   submit: {
     backgroundColor: nativeTheme.colors.ink,

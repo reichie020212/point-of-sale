@@ -279,6 +279,125 @@ test('sync push', async (t) => {
       assert.equal(orderRow?.status, 'refunded');
     });
 
+    await t.test('tipped-order partial refund persists breakdown columns', async () => {
+      // Tipped/taxed order: 1000 + 120 tax + 50 tip = 1170 total. The
+      // mobile client computes the breakdown locally (Blueprint:
+      // tip-allocation-on-partial-refunds) and ships all four
+      // component fields — the server stores them verbatim.
+      const tippedOrderId = randomUUID();
+      const tippedItemId = randomUUID();
+      await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'orders',
+            asDelta: false,
+            data: {
+              id: tippedOrderId,
+              payment_method: 'cash',
+              subtotal_cents: 1000,
+              tax_cents: 120,
+              tip_cents: 50,
+              discount_cents: 0,
+              total_cents: 1170,
+            },
+          },
+          {
+            clientOpId: randomUUID(),
+            table: 'order_items',
+            asDelta: false,
+            data: {
+              id: tippedItemId,
+              order_id: tippedOrderId,
+              variant_id: variantSingleId,
+              name_snapshot: 'Single ×2',
+              qty: 2,
+              unit_price_cents: 500,
+              subtotal_cents: 1000,
+            },
+          },
+        ],
+      });
+
+      // Partial refund: half the items. Tip stays at 0 (all-or-nothing
+      // rule); tax pro-rated to floor(120 × 500/1000) = 60.
+      const partialRefundId = randomUUID();
+      await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'refunds',
+            asDelta: false,
+            data: {
+              id: partialRefundId,
+              order_id: tippedOrderId,
+              amount_cents: 560,
+              subtotal_cents: 500,
+              tax_cents: 60,
+              tip_cents: 0,
+              discount_cents: 0,
+              reason: 'One drink wrong',
+            },
+          },
+        ],
+      });
+      const [partialRow] = await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.id, partialRefundId));
+      assert.ok(partialRow);
+      assert.equal(partialRow.subtotalCents, 500);
+      assert.equal(partialRow.taxCents, 60);
+      assert.equal(partialRow.tipCents, 0, 'tip must stay at 0 on partial refund');
+      assert.equal(partialRow.discountCents, 0);
+      assert.equal(partialRow.amountCents, 560);
+
+      const [afterPartial] = await db.select().from(orders).where(eq(orders.id, tippedOrderId));
+      assert.equal(afterPartial?.status, 'partially_refunded');
+
+      // Closing-out refund: remaining items, plus the held tip + tax
+      // remainder. Σ refunds.amount_cents = 560 + 610 = 1170 =
+      // order.total_cents → status flips to refunded.
+      const closingRefundId = randomUUID();
+      await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'refunds',
+            asDelta: false,
+            data: {
+              id: closingRefundId,
+              order_id: tippedOrderId,
+              amount_cents: 610,
+              subtotal_cents: 500,
+              tax_cents: 60,
+              tip_cents: 50,
+              discount_cents: 0,
+              reason: 'Returned the rest',
+            },
+          },
+        ],
+      });
+      const [closingRow] = await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.id, closingRefundId));
+      assert.equal(closingRow?.tipCents, 50, 'closing-out releases the full tip');
+
+      const [afterClosing] = await db.select().from(orders).where(eq(orders.id, tippedOrderId));
+      assert.equal(
+        afterClosing?.status,
+        'refunded',
+        'order must flip to refunded once cumulative refund matches order.total_cents (incl. tip)',
+      );
+    });
+
     await t.test('refund with bad order_id rejected as invalid_payload', async () => {
       const results = await processPush({
         db,

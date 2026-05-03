@@ -26,6 +26,20 @@ export interface OrderDetailLine {
   modifiersJson: string | null;
 }
 
+export interface PriorRefundsTotals {
+  /** Σ refunds.amount_cents — net cash returned so far. */
+  amountCents: number;
+  /** Σ refunds.subtotal_cents — line-item value already refunded. */
+  subtotalCents: number;
+  /** Σ refunds.tax_cents — tax already refunded; the next refund's
+   *  pro-rate uses (order.tax − this) as the remaining pool. */
+  taxCents: number;
+  /** Σ refunds.tip_cents — should be 0 until the closing-out refund. */
+  tipCents: number;
+  /** Σ refunds.discount_cents — discount already reversed. */
+  discountCents: number;
+}
+
 export interface OrderDetail {
   id: string;
   status: string;
@@ -39,8 +53,13 @@ export interface OrderDetail {
   createdAtMs: number;
   syncedAtMs: number | null;
   items: OrderDetailLine[];
-  /** Sum of `amount_cents` over all locally-known refunds for the order. */
+  /** Sum of `amount_cents` over all locally-known refunds for the order.
+   *  Kept for backwards compatibility with existing callers; new callers
+   *  should use `priorRefunds.amountCents`. */
   refundedCents: number;
+  /** Per-component breakdown sums across all prior refunds — feeds into
+   *  computeRefundBreakdown's closing-out math. */
+  priorRefunds: PriorRefundsTotals;
 }
 
 export function useOrderDetail(orderServerId: string | undefined) {
@@ -82,26 +101,51 @@ export function useOrderDetail(orderServerId: string | undefined) {
           .observeWithColumns(['qty', 'unit_price_cents', 'subtotal_cents'])
           .subscribe((itemRows) => {
             if (cancelled) return;
-            updateDetail(order, itemRows, refundsCachedTotal);
+            updateDetail(order, itemRows, refundsCachedTotals);
           });
 
         refundsSub = refundsCol
           .query(Q.where('order_id', order.serverId))
-          .observeWithColumns(['amount_cents'])
+          .observeWithColumns([
+            'amount_cents',
+            'subtotal_cents',
+            'tax_cents',
+            'tip_cents',
+            'discount_cents',
+          ])
           .subscribe((refundRows) => {
             if (cancelled) return;
-            refundsCachedTotal = refundRows.reduce((sum, r) => sum + r.amountCents, 0);
-            updateDetail(order, lastItems, refundsCachedTotal);
+            refundsCachedTotals = {
+              amountCents: 0,
+              subtotalCents: 0,
+              taxCents: 0,
+              tipCents: 0,
+              discountCents: 0,
+            };
+            for (const r of refundRows) {
+              refundsCachedTotals.amountCents += r.amountCents;
+              refundsCachedTotals.subtotalCents += r.subtotalCents ?? 0;
+              refundsCachedTotals.taxCents += r.taxCents ?? 0;
+              refundsCachedTotals.tipCents += r.tipCents ?? 0;
+              refundsCachedTotals.discountCents += r.discountCents ?? 0;
+            }
+            updateDetail(order, lastItems, refundsCachedTotals);
           });
       });
 
     let lastItems: OrderItemModel[] = [];
-    let refundsCachedTotal = 0;
+    let refundsCachedTotals: PriorRefundsTotals = {
+      amountCents: 0,
+      subtotalCents: 0,
+      taxCents: 0,
+      tipCents: 0,
+      discountCents: 0,
+    };
 
     function updateDetail(
       order: OrderModel,
       items: OrderItemModel[],
-      refundedCents: number,
+      priorRefunds: PriorRefundsTotals,
     ) {
       lastItems = items;
       setDetail({
@@ -125,7 +169,8 @@ export function useOrderDetail(orderServerId: string | undefined) {
           subtotalCents: it.subtotalCents,
           modifiersJson: it.modifiersJson,
         })),
-        refundedCents,
+        refundedCents: priorRefunds.amountCents,
+        priorRefunds,
       });
       setLoading(false);
     }

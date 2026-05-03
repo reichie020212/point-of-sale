@@ -363,11 +363,26 @@ const writers: Record<string, Writer> = {
       .limit(1);
     if (!order) return null;
 
+    // Breakdown columns default to 0 if missing so pre-breakdown clients
+    // (or partial payloads) keep working — pre-launch only matters here,
+    // but the trust-client thesis means we still accept whatever the
+    // device sends. The sum invariant
+    // (subtotal + tax + tip - discount === amount) is enforced on the
+    // device, not re-derived here.
+    const subtotalCents = asNumber(data.subtotal_cents ?? data.subtotalCents) ?? 0;
+    const taxCents = asNumber(data.tax_cents ?? data.taxCents) ?? 0;
+    const tipCents = asNumber(data.tip_cents ?? data.tipCents) ?? 0;
+    const discountCents = asNumber(data.discount_cents ?? data.discountCents) ?? 0;
+
     const values = {
       id,
       orgId,
       orderId,
       amountCents,
+      subtotalCents,
+      taxCents,
+      tipCents,
+      discountCents,
       reason: asString(data.reason) ?? null,
       processedById: asString(data.processed_by_id ?? data.processedById) ?? null,
       paymentReference: asString(data.payment_reference ?? data.paymentReference) ?? null,

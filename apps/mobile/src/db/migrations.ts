@@ -14,6 +14,9 @@
  * v3: loyalty_programs + loyalty_punches for the Punchcard milestone.
  * v4: users table for the PIN sign-in milestone — mirrors the server
  *     `users` row so PIN verification works offline.
+ * v5: refund breakdown columns (subtotal/tax/tip/discount) so partial
+ *     refunds can pro-rate tax + discount and so a closing-out refund
+ *     can return the tip — pre-v5 refund rows backfill to 0.
  */
 import {
   schemaMigrations,
@@ -23,6 +26,20 @@ import {
 
 export const migrations = schemaMigrations({
   migrations: [
+    {
+      toVersion: 5,
+      steps: [
+        addColumns({
+          table: 'refunds',
+          columns: [
+            { name: 'subtotal_cents', type: 'number' },
+            { name: 'tax_cents', type: 'number' },
+            { name: 'tip_cents', type: 'number' },
+            { name: 'discount_cents', type: 'number' },
+          ],
+        }),
+      ],
+    },
     {
       toVersion: 4,
       steps: [

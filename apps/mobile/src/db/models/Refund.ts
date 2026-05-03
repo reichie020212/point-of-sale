@@ -9,6 +9,10 @@ export class Refund extends Model {
   @text('org_id') orgId!: string;
   @text('order_id') orderId!: string;
   @field('amount_cents') amountCents!: number;
+  @field('subtotal_cents') subtotalCents!: number;
+  @field('tax_cents') taxCents!: number;
+  @field('tip_cents') tipCents!: number;
+  @field('discount_cents') discountCents!: number;
   @text('reason') reason!: string | null;
   @text('processed_by_id') processedById!: string | null;
   @text('payment_reference') paymentReference!: string | null;
