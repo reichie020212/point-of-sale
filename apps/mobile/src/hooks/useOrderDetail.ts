@@ -30,6 +30,7 @@ export interface OrderDetail {
   id: string;
   status: string;
   paymentMethod: string;
+  customerId: string | null;
   subtotalCents: number;
   taxCents: number;
   tipCents: number;
@@ -107,6 +108,7 @@ export function useOrderDetail(orderServerId: string | undefined) {
         id: order.serverId,
         status: order.status,
         paymentMethod: order.paymentMethod,
+        customerId: order.customerId,
         subtotalCents: order.subtotalCents,
         taxCents: order.taxCents,
         tipCents: order.tipCents,

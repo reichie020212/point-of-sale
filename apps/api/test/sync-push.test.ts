@@ -367,7 +367,137 @@ test('sync push', async (t) => {
         .from(loyaltyPunches)
         .where(eq(loyaltyPunches.programId, programId));
       assert.equal(earnedRows.length, 2);
-      assert.equal(earnedRows.filter((r) => r.isRedemption).length, 1);
+      assert.equal(
+        earnedRows.filter((r: { isRedemption: boolean }) => r.isRedemption).length,
+        1,
+      );
+    });
+
+    await t.test('refund tombstones associated loyalty_punches', async () => {
+      // Build an isolated mini-order for this case so prior subtests
+      // (which already left the original order fully refunded) don't
+      // interfere. New order, new customer, new program, three punches
+      // attached to the new order's items, then refund and confirm
+      // tombstones.
+      const refundOrderId = randomUUID();
+      const refundCustomerId = randomUUID();
+      const refundProgramId = randomUUID();
+
+      await db.insert(customers).values({ id: refundCustomerId, orgId, name: 'Refund-Loyalty' });
+      const programResults = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_programs',
+            asDelta: false,
+            data: {
+              id: refundProgramId,
+              name: 'Test',
+              target_type: 'product',
+              target_id: productId,
+              threshold: 5,
+            },
+          },
+        ],
+      });
+      assert.equal(programResults[0]?.ok, true);
+
+      const orderResults = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'orders',
+            asDelta: false,
+            data: {
+              id: refundOrderId,
+              payment_method: 'cash',
+              subtotal_cents: 700,
+              total_cents: 700,
+            },
+          },
+        ],
+      });
+      assert.equal(orderResults[0]?.ok, true);
+
+      const punchA = randomUUID();
+      const punchB = randomUUID();
+      const unrelatedPunch = randomUUID();
+      const unrelatedOrderId = randomUUID();
+      await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_punches',
+            asDelta: false,
+            data: {
+              id: punchA,
+              customer_id: refundCustomerId,
+              program_id: refundProgramId,
+              order_item_id: `${refundOrderId}_lineA`,
+              is_redemption: false,
+            },
+          },
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_punches',
+            asDelta: false,
+            data: {
+              id: punchB,
+              customer_id: refundCustomerId,
+              program_id: refundProgramId,
+              order_item_id: `${refundOrderId}_lineB`,
+              is_redemption: false,
+            },
+          },
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_punches',
+            asDelta: false,
+            data: {
+              id: unrelatedPunch,
+              customer_id: refundCustomerId,
+              program_id: refundProgramId,
+              order_item_id: `${unrelatedOrderId}_lineX`,
+              is_redemption: false,
+            },
+          },
+        ],
+      });
+
+      const refundResults = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'refunds',
+            asDelta: false,
+            data: {
+              id: randomUUID(),
+              order_id: refundOrderId,
+              amount_cents: 700,
+              reason: 'Returned',
+            },
+          },
+        ],
+      });
+      assert.equal(refundResults[0]?.ok, true);
+
+      const [a] = await db.select().from(loyaltyPunches).where(eq(loyaltyPunches.id, punchA));
+      const [b] = await db.select().from(loyaltyPunches).where(eq(loyaltyPunches.id, punchB));
+      const [u] = await db
+        .select()
+        .from(loyaltyPunches)
+        .where(eq(loyaltyPunches.id, unrelatedPunch));
+      assert.ok(a?.deletedAt, 'punch A should be tombstoned');
+      assert.ok(b?.deletedAt, 'punch B should be tombstoned');
+      assert.equal(u?.deletedAt, null, 'unrelated-order punch must NOT be tombstoned');
     });
 
     await t.test('loyalty_programs missing target_id rejected as invalid_payload', async () => {

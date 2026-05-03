@@ -12,6 +12,7 @@ import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Money } from '../../src/components/Money';
+import { PunchProgress } from '../../src/components/PunchProgress';
 import { useOrderDetail } from '../../src/hooks/useOrderDetail';
 
 export default function OrderDetailScreen() {
@@ -92,6 +93,13 @@ export default function OrderDetailScreen() {
           </View>
         )}
       </View>
+
+      {detail.customerId && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Loyalty</Text>
+          <PunchProgress customerId={detail.customerId} />
+        </View>
+      )}
 
       <Link
         href={{ pathname: '/refund/[id]', params: { id: detail.id } }}

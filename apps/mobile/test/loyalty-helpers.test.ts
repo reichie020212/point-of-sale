@@ -15,6 +15,7 @@ import {
   lineMatchesProgram,
   loyaltyDiscountCents,
   pickRedemptions,
+  progressTowardNext,
   type CartLineSnapshot,
   type LoyaltyProgramSnapshot,
 } from '../src/state/loyalty-helpers';
@@ -129,6 +130,24 @@ test('loyaltyDiscountCents', () => {
     { lineId: 'b', programId: 'p', discountCents: 220 },
   ];
   assert.equal(loyaltyDiscountCents(applied), 570);
+});
+
+test('progressTowardNext', async (t) => {
+  await t.test('counts earned mod threshold (no redemptions)', () => {
+    assert.equal(progressTowardNext(8, 0, 10), 8);
+  });
+  await t.test('subtracts one threshold per redemption', () => {
+    // earned=12, redeemed=1, threshold=10 → 12 - 10 = 2 toward the next free
+    assert.equal(progressTowardNext(12, 1, 10), 2);
+  });
+  await t.test('clamps at zero', () => {
+    // earned=5, redeemed=1, threshold=10 → 5 - 10 = -5 → clamped to 0
+    assert.equal(progressTowardNext(5, 1, 10), 0);
+  });
+  await t.test('zero / negative threshold is a no-op', () => {
+    assert.equal(progressTowardNext(100, 0, 0), 0);
+    assert.equal(progressTowardNext(100, 0, -5), 0);
+  });
 });
 
 test('earnedPunchesByProgram', async (t) => {

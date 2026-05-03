@@ -38,7 +38,7 @@ import {
   variants,
   type Db,
 } from '@counter/schema';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { SyncTable } from '@counter/sync';
 
@@ -388,6 +388,25 @@ const writers: Record<string, Writer> = {
       .update(orders)
       .set({ status: newStatus, version, updatedAt: new Date() })
       .where(and(eq(orders.id, orderId), eq(orders.orgId, orgId)));
+
+    // Tombstone any loyalty_punches whose order_item_id starts with
+    // this order's id (mobile names them `${orderId}_${lineId}`). The
+    // ledger shape (Blueprint #21) means a refunded punch is just a
+    // soft-delete; it propagates to all devices via the standard sync
+    // loop because we stamp `version` to the same Lamport tick. The
+    // backslash-escape is defensive — `_` is a SQL LIKE wildcard, so
+    // a literal underscore must be escaped to avoid matching arbitrary
+    // characters at position 37 of the order_item_id.
+    await tx
+      .update(loyaltyPunches)
+      .set({ deletedAt: new Date(), version })
+      .where(
+        and(
+          eq(loyaltyPunches.orgId, orgId),
+          isNull(loyaltyPunches.deletedAt),
+          sql`${loyaltyPunches.orderItemId} LIKE ${`${orderId}\\_%`} ESCAPE '\\'`,
+        ),
+      );
 
     return id;
   },

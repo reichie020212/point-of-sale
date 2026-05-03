@@ -158,6 +158,24 @@ export function loyaltyDiscountCents(applied: AppliedRedemption[]): number {
 }
 
 /**
+ * Customer-facing display: how many punches the customer has earned
+ * but not yet redeemed against this program's threshold. Used by the
+ * `PunchProgress` component to show "N / threshold".
+ *
+ * `earned - redeemed * threshold` because each redemption "consumes"
+ * one full threshold's worth of earned punches. Clamped to 0 to be
+ * defensive against off-by-one ledger states.
+ */
+export function progressTowardNext(
+  earned: number,
+  redeemed: number,
+  threshold: number,
+): number {
+  if (threshold <= 0) return 0;
+  return Math.max(0, earned - redeemed * threshold);
+}
+
+/**
  * For the post-checkout punch ledger: how many *new* punches each
  * program should record for the lines just sold. Each non-redeemed
  * unit of a qualifying line contributes one punch. Redemptions are

@@ -9,6 +9,7 @@ import { nativeTheme } from '@counter/tokens/native';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { PunchProgress } from '../src/components/PunchProgress';
 import { useCustomers, type CustomerSummary } from '../src/hooks/useCustomers';
 
 export default function CustomersScreen() {
@@ -58,6 +59,7 @@ function CustomerRow({ customer }: { customer: CustomerSummary }) {
             {sub}
           </Text>
         )}
+        <PunchProgress customerId={customer.id} variant="row" />
       </View>
       <Text style={styles.rowPoints}>{customer.loyaltyPoints} pts</Text>
     </View>
