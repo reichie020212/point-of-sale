@@ -57,6 +57,13 @@
       "when": 1777788540238,
       "tag": "0007_real_loki",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777790005644,
+      "tag": "0008_smooth_clea",
+      "breakpoints": true
     }
   ]
 }

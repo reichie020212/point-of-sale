@@ -20,6 +20,8 @@ import {
   categories,
   customers,
   inventoryMovements,
+  loyaltyPrograms,
+  loyaltyPunches,
   modifiers,
   orderItems,
   orders,
@@ -86,6 +88,22 @@ export async function fetchRecord(
     }
     case 'refunds': {
       const [row] = await db.select().from(refunds).where(eq(refunds.id, id)).limit(1);
+      return row ?? null;
+    }
+    case 'loyalty_programs': {
+      const [row] = await db
+        .select()
+        .from(loyaltyPrograms)
+        .where(eq(loyaltyPrograms.id, id))
+        .limit(1);
+      return row ?? null;
+    }
+    case 'loyalty_punches': {
+      const [row] = await db
+        .select()
+        .from(loyaltyPunches)
+        .where(eq(loyaltyPunches.id, id))
+        .limit(1);
       return row ?? null;
     }
     case 'devices':

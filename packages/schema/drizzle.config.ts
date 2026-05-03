@@ -13,6 +13,7 @@ export default {
     './src/catalog.ts',
     './src/customers.ts',
     './src/devices.ts',
+    './src/loyalty.ts',
     './src/sales.ts',
     './src/sync.ts',
   ],

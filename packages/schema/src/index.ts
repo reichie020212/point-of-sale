@@ -40,6 +40,20 @@ export {
 // Customers
 export { customers, type Customer, type NewCustomer } from './customers';
 
+// Loyalty (punchcard)
+export {
+  loyaltyPrograms,
+  loyaltyPunches,
+  loyaltyTargetType,
+  loyaltyProgramStatus,
+  type LoyaltyProgram,
+  type NewLoyaltyProgram,
+  type LoyaltyPunch,
+  type NewLoyaltyPunch,
+  type LoyaltyTargetType,
+  type LoyaltyProgramStatus,
+} from './loyalty';
+
 // Devices + shifts
 export {
   devices,

@@ -26,6 +26,8 @@ import {
   categories,
   customers,
   inventoryMovements,
+  loyaltyPrograms,
+  loyaltyPunches,
   orderItems,
   orders,
   organizations,
@@ -70,6 +72,8 @@ const SUPPORTED: ReadonlySet<SyncTable> = new Set([
   'categories',
   'customers',
   'inventory_movements',
+  'loyalty_programs',
+  'loyalty_punches',
   'order_items',
   'orders',
   'products',
@@ -385,6 +389,75 @@ const writers: Record<string, Writer> = {
       .set({ status: newStatus, version, updatedAt: new Date() })
       .where(and(eq(orders.id, orderId), eq(orders.orgId, orgId)));
 
+    return id;
+  },
+
+  loyalty_programs: async (tx, orgId, data, version) => {
+    const id = asString(data.id);
+    const name = asString(data.name);
+    const targetTypeRaw = asString(data.target_type ?? data.targetType);
+    const targetId = asString(data.target_id ?? data.targetId);
+    const threshold = asNumber(data.threshold);
+    if (
+      !id ||
+      !name ||
+      !targetId ||
+      threshold === undefined ||
+      (targetTypeRaw !== 'product' && targetTypeRaw !== 'category')
+    ) {
+      return null;
+    }
+    const status = asString(data.status) === 'archived' ? 'archived' : 'active';
+    const values = {
+      id,
+      orgId,
+      name,
+      targetType: targetTypeRaw as 'product' | 'category',
+      targetId,
+      threshold,
+      status: status as 'active' | 'archived',
+      clientOpId: asString(data.client_op_id ?? data.clientOpId) ?? null,
+      version,
+      deletedAt: asDate(data.deleted_at ?? data.deletedAt) ?? null,
+      updatedAt: new Date(),
+    };
+    await tx
+      .insert(loyaltyPrograms)
+      .values(values)
+      .onConflictDoUpdate({
+        target: loyaltyPrograms.id,
+        set: {
+          name: values.name,
+          targetType: values.targetType,
+          targetId: values.targetId,
+          threshold: values.threshold,
+          status: values.status,
+          version,
+          deletedAt: values.deletedAt,
+          updatedAt: values.updatedAt,
+        },
+      });
+    return id;
+  },
+
+  loyalty_punches: async (tx, orgId, data, version) => {
+    const id = asString(data.id);
+    const customerId = asString(data.customer_id ?? data.customerId);
+    const programId = asString(data.program_id ?? data.programId);
+    if (!id || !customerId || !programId) return null;
+    const isRedemptionRaw = data.is_redemption ?? data.isRedemption;
+    const values = {
+      id,
+      orgId,
+      customerId,
+      programId,
+      orderItemId: asString(data.order_item_id ?? data.orderItemId) ?? null,
+      isRedemption: typeof isRedemptionRaw === 'boolean' ? isRedemptionRaw : false,
+      clientOpId: asString(data.client_op_id ?? data.clientOpId) ?? null,
+      version,
+      deletedAt: asDate(data.deleted_at ?? data.deletedAt) ?? null,
+    };
+    await tx.insert(loyaltyPunches).values(values).onConflictDoNothing({ target: loyaltyPunches.id });
     return id;
   },
 

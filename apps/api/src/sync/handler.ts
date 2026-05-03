@@ -23,6 +23,8 @@ import {
   customers,
   devices,
   inventoryMovements,
+  loyaltyPrograms,
+  loyaltyPunches,
   orderItems,
   orders,
   organizations,
@@ -508,6 +510,20 @@ const SUPPORTED_PULLS: Partial<
       .from(shifts)
       .where(and(eq(shifts.orgId, orgId), gt(shifts.version, cursor)))
       .orderBy(asc(shifts.version))
+      .limit(PULL_PAGE_SIZE),
+  loyalty_programs: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(loyaltyPrograms)
+      .where(and(eq(loyaltyPrograms.orgId, orgId), gt(loyaltyPrograms.version, cursor)))
+      .orderBy(asc(loyaltyPrograms.version))
+      .limit(PULL_PAGE_SIZE),
+  loyalty_punches: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(loyaltyPunches)
+      .where(and(eq(loyaltyPunches.orgId, orgId), gt(loyaltyPunches.version, cursor)))
+      .orderBy(asc(loyaltyPunches.version))
       .limit(PULL_PAGE_SIZE),
   // The org row is one-row-per-device-session; emit it on HELLO if
   // its `version` is ahead of the device's cursor. This is what

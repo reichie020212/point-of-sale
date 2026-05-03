@@ -15,6 +15,8 @@ import test from 'node:test';
 import {
   customers,
   inventoryMovements,
+  loyaltyPrograms,
+  loyaltyPunches,
   orderItems,
   orders,
   organizations,
@@ -91,6 +93,8 @@ test('sync push', async (t) => {
 
   const cleanup = async () => {
     await db.delete(syncIdempotency).where(eq(syncIdempotency.orgId, orgId));
+    await db.delete(loyaltyPunches).where(eq(loyaltyPunches.orgId, orgId));
+    await db.delete(loyaltyPrograms).where(eq(loyaltyPrograms.orgId, orgId));
     await db.delete(refunds).where(eq(refunds.orgId, orgId));
     await db.delete(orderItems).where(eq(orderItems.orgId, orgId));
     await db.delete(inventoryMovements).where(eq(inventoryMovements.orgId, orgId));
@@ -288,6 +292,99 @@ test('sync push', async (t) => {
               id: randomUUID(),
               order_id: randomUUID(), // not an existing order
               amount_cents: 100,
+            },
+          },
+        ],
+      });
+      assert.equal(results[0]?.ok, false);
+      assert.match(results[0]?.error ?? '', /invalid_payload/);
+    });
+
+    await t.test('loyalty: program upsert + earned + redemption punches persist', async () => {
+      const programId = randomUUID();
+      // Need a customer to attach punches to.
+      const customerId = randomUUID();
+      await db
+        .insert(customers)
+        .values({ id: customerId, orgId, name: 'Loyalty Test' });
+
+      const programResults = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_programs',
+            asDelta: false,
+            data: {
+              id: programId,
+              name: 'Coffee Card',
+              target_type: 'product',
+              target_id: productId,
+              threshold: 5,
+            },
+          },
+        ],
+      });
+      assert.equal(programResults[0]?.ok, true);
+
+      const earnedId = randomUUID();
+      const redemptionId = randomUUID();
+      const punchResults = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_punches',
+            asDelta: false,
+            data: {
+              id: earnedId,
+              customer_id: customerId,
+              program_id: programId,
+              order_item_id: 'item-1',
+              is_redemption: false,
+            },
+          },
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_punches',
+            asDelta: false,
+            data: {
+              id: redemptionId,
+              customer_id: customerId,
+              program_id: programId,
+              order_item_id: 'item-2',
+              is_redemption: true,
+            },
+          },
+        ],
+      });
+      assert.equal(punchResults.filter((r) => r.ok).length, 2);
+
+      const earnedRows = await db
+        .select()
+        .from(loyaltyPunches)
+        .where(eq(loyaltyPunches.programId, programId));
+      assert.equal(earnedRows.length, 2);
+      assert.equal(earnedRows.filter((r) => r.isRedemption).length, 1);
+    });
+
+    await t.test('loyalty_programs missing target_id rejected as invalid_payload', async () => {
+      const results = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'loyalty_programs',
+            asDelta: false,
+            data: {
+              id: randomUUID(),
+              name: 'Bad',
+              target_type: 'product',
+              // target_id missing
+              threshold: 5,
             },
           },
         ],

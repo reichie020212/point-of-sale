@@ -12,23 +12,33 @@
  *      durable write.
  *   6. Clear the cart and navigate to /receipt.
  *
+ * Loyalty: when the cart's customer has redemption credit on an
+ * active program (locked §9 punchcard model), the matching cart line
+ * is auto-discounted to free. On checkout we write per-line punches
+ * (one per qualifying non-redeemed unit) and per-line redemption rows
+ * (one per redeemed unit).
+ *
  * Card / split / Stripe Terminal flow lands when StripeTerminalProvider
  * gets its real implementation in W5.
  */
 import { CashProvider } from '@counter/payments';
 import { nativeTheme } from '@counter/tokens/native';
+import { Q } from '@nozbe/watermelondb';
 import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Money } from '../src/components/Money';
 import { database } from '../src/db';
+import { useLoyalty } from '../src/hooks/useLoyalty';
 import { useCart } from '../src/state/cart';
 import { useDevice } from '../src/state/device';
 import { useLastSale } from '../src/state/last-sale';
 import { useOrgSettings } from '../src/state/org-settings';
 import { enqueue } from '../src/sync/queue';
 
+import type { Product as ProductModel } from '../src/db/models/Product';
+import type { CartLineSnapshot } from '../src/state/loyalty-helpers';
 import type { ReceiptItem, ReceiptOrder } from '@counter/printers';
 
 const cash = new CashProvider();
@@ -48,8 +58,56 @@ export default function PaymentScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const taxCents = Math.round((subtotal - discountCents) * taxRate);
-  const totalCents = subtotal - discountCents + taxCents + tipCents;
+  // Resolve productId → categoryId for every cart line so the loyalty
+  // helpers can match category-targeted programs offline. The query is
+  // cheap (cart is short) and runs fresh on every cart mutation.
+  const [categoryByProductId, setCategoryByProductId] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    const productIds = Array.from(new Set(lines.map((l) => l.productId))).filter(
+      (id) => id.length > 0,
+    );
+    if (productIds.length === 0) {
+      setCategoryByProductId({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const rows = await database
+        .get<ProductModel>('products')
+        .query(Q.where('server_id', Q.oneOf(productIds)))
+        .fetch();
+      if (cancelled) return;
+      const next: Record<string, string | null> = {};
+      for (const row of rows) {
+        const raw = (row as unknown as { _raw: { server_id: string; category_id: string | null } })
+          ._raw;
+        next[raw.server_id] = raw.category_id ?? null;
+      }
+      setCategoryByProductId(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lines]);
+
+  const cartSnapshots = useMemo<CartLineSnapshot[]>(
+    () =>
+      lines.map((l) => ({
+        lineId: l.lineId,
+        productId: l.productId,
+        categoryId: categoryByProductId[l.productId] ?? null,
+        unitPriceCents: l.unitPriceCents,
+        qty: l.qty,
+      })),
+    [lines, categoryByProductId],
+  );
+
+  const loyalty = useLoyalty({ customerId, cartLines: cartSnapshots });
+  const loyaltyDiscountCents = loyalty.discountCents;
+
+  const taxableBase = Math.max(0, subtotal - discountCents - loyaltyDiscountCents);
+  const taxCents = Math.round(taxableBase * taxRate);
+  const totalCents = taxableBase + taxCents + tipCents;
 
   const onCash = async () => {
     if (lines.length === 0) return;
@@ -87,18 +145,34 @@ export default function PaymentScreen() {
       }));
       setLastSale({ order, items });
 
+      // Snapshot loyalty math for this checkout so subsequent state
+      // changes can't shift the rows we're about to write.
+      const orgId = identity?.orgId ?? '';
+      const appliedRedemptions = loyalty.applied.map((r) => ({
+        ...r,
+        clientOpId: makeOpId('punch'),
+        serverId: makeUuidLike(),
+      }));
+      const earnedPunches = loyalty.earnedPunches.map((p) => ({
+        ...p,
+        clientOpId: makeOpId('punch'),
+        serverId: makeUuidLike(),
+      }));
+
       // Optimistic local persistence: write the finalized order +
-      // items to Watermelon so the orders screen observer fires
-      // immediately. The server's later PULL emit will reconcile via
-      // server_id (clientOpId is also the canonical order id).
+      // items + loyalty rows to Watermelon so the orders screen
+      // observer fires immediately. The server's later PULL emit will
+      // reconcile via server_id (clientOpId is also the canonical
+      // order id).
       await database.write(async () => {
         const orderCol = database.get('orders');
         const itemsCol = database.get('order_items');
+        const punchesCol = database.get('loyalty_punches');
         await orderCol.create((row) => {
           const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
           raw.server_id = orderId;
           raw.client_op_id = clientOpId;
-          raw.org_id = identity?.orgId ?? '';
+          raw.org_id = orgId;
           raw.customer_id = customerId;
           raw.shift_id = null;
           raw.device_id = identity?.deviceId ?? '';
@@ -107,7 +181,9 @@ export default function PaymentScreen() {
           raw.subtotal_cents = subtotal;
           raw.tax_cents = taxCents;
           raw.tip_cents = tipCents;
-          raw.discount_cents = discountCents;
+          // Loyalty discount is folded into discount_cents on the
+          // order so totals reconcile without a new column.
+          raw.discount_cents = discountCents + loyaltyDiscountCents;
           raw.total_cents = totalCents;
           raw.created_at = Date.now();
           raw.synced_at = null;
@@ -117,7 +193,7 @@ export default function PaymentScreen() {
           await itemsCol.create((row) => {
             const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
             raw.server_id = `${orderId}_${line.lineId}`;
-            raw.org_id = identity?.orgId ?? '';
+            raw.org_id = orgId;
             raw.order_id = orderId;
             raw.variant_id = line.variantId;
             raw.name_snapshot = line.nameSnapshot;
@@ -127,6 +203,35 @@ export default function PaymentScreen() {
             raw.modifiers_json =
               line.modifiers.length > 0 ? JSON.stringify(line.modifiers) : null;
           });
+        }
+
+        if (customerId) {
+          for (const punch of earnedPunches) {
+            await punchesCol.create((row) => {
+              const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
+              raw.server_id = punch.serverId;
+              raw.client_op_id = punch.clientOpId;
+              raw.org_id = orgId;
+              raw.customer_id = customerId;
+              raw.program_id = punch.programId;
+              raw.order_item_id = `${orderId}_${punch.lineId}`;
+              raw.is_redemption = false;
+              raw.created_at = Date.now();
+            });
+          }
+          for (const redemption of appliedRedemptions) {
+            await punchesCol.create((row) => {
+              const raw = (row as unknown as { _raw: Record<string, unknown> })._raw;
+              raw.server_id = redemption.serverId;
+              raw.client_op_id = redemption.clientOpId;
+              raw.org_id = orgId;
+              raw.customer_id = customerId;
+              raw.program_id = redemption.programId;
+              raw.order_item_id = `${orderId}_${redemption.lineId}`;
+              raw.is_redemption = true;
+              raw.created_at = Date.now();
+            });
+          }
         }
       });
 
@@ -144,13 +249,46 @@ export default function PaymentScreen() {
           subtotalCents: subtotal,
           taxCents,
           tipCents,
-          discountCents,
+          discountCents: discountCents + loyaltyDiscountCents,
           totalCents,
           paymentReference: charge.transactionId,
           clientOpId,
         },
         asDelta: false,
       });
+
+      if (customerId) {
+        for (const punch of earnedPunches) {
+          await enqueue({
+            clientOpId: punch.clientOpId,
+            table: 'loyalty_punches',
+            payload: {
+              id: punch.serverId,
+              customerId,
+              programId: punch.programId,
+              orderItemId: `${orderId}_${punch.lineId}`,
+              isRedemption: false,
+              clientOpId: punch.clientOpId,
+            },
+            asDelta: false,
+          });
+        }
+        for (const redemption of appliedRedemptions) {
+          await enqueue({
+            clientOpId: redemption.clientOpId,
+            table: 'loyalty_punches',
+            payload: {
+              id: redemption.serverId,
+              customerId,
+              programId: redemption.programId,
+              orderItemId: `${orderId}_${redemption.lineId}`,
+              isRedemption: true,
+              clientOpId: redemption.clientOpId,
+            },
+            asDelta: false,
+          });
+        }
+      }
 
       clear();
       router.replace('/receipt');
@@ -167,6 +305,12 @@ export default function PaymentScreen() {
         <Row label="Subtotal" value={<Money cents={subtotal} />} />
         {discountCents > 0 && (
           <Row label="Discount" value={<Money cents={-discountCents} signed />} />
+        )}
+        {loyaltyDiscountCents > 0 && (
+          <Row
+            label={`Loyalty (${loyalty.applied.length} free)`}
+            value={<Money cents={-loyaltyDiscountCents} signed />}
+          />
         )}
         <Row label="Tax" value={<Money cents={taxCents} />} />
         {tipCents > 0 && <Row label="Tip" value={<Money cents={tipCents} />} />}
@@ -195,6 +339,18 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
       {value}
     </View>
   );
+}
+
+function makeOpId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function makeUuidLike(): string {
+  const hex = (n: number) =>
+    Math.floor(Math.random() * 16 ** n)
+      .toString(16)
+      .padStart(n, '0');
+  return `${hex(8)}-${hex(4)}-4${hex(3)}-${(8 + Math.floor(Math.random() * 4)).toString(16)}${hex(3)}-${hex(12)}`;
 }
 
 const styles = StyleSheet.create({

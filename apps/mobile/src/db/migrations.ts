@@ -33,5 +33,39 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 3,
+      steps: [
+        createTable({
+          name: 'loyalty_programs',
+          columns: [
+            { name: 'server_id', type: 'string', isIndexed: true },
+            { name: 'client_op_id', type: 'string', isIndexed: true },
+            { name: 'org_id', type: 'string', isIndexed: true },
+            { name: 'name', type: 'string' },
+            { name: 'target_type', type: 'string' },
+            { name: 'target_id', type: 'string', isIndexed: true },
+            { name: 'threshold', type: 'number' },
+            { name: 'status', type: 'string' },
+            { name: 'updated_at', type: 'number' },
+            { name: 'deleted_at', type: 'number', isOptional: true },
+          ],
+        }),
+        createTable({
+          name: 'loyalty_punches',
+          columns: [
+            { name: 'server_id', type: 'string', isIndexed: true },
+            { name: 'client_op_id', type: 'string', isIndexed: true },
+            { name: 'org_id', type: 'string', isIndexed: true },
+            { name: 'customer_id', type: 'string', isIndexed: true },
+            { name: 'program_id', type: 'string', isIndexed: true },
+            { name: 'order_item_id', type: 'string', isOptional: true },
+            { name: 'is_redemption', type: 'boolean' },
+            { name: 'created_at', type: 'number' },
+            { name: 'deleted_at', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
   ],
 });

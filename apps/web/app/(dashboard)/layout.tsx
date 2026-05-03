@@ -54,6 +54,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             <Link href="/dashboard/customers" className="hover:text-ink">
               Customers
             </Link>
+            <Link href="/dashboard/loyalty" className="hover:text-ink">
+              Loyalty
+            </Link>
             <Link href="/dashboard/registers" className="hover:text-ink">
               Registers
             </Link>

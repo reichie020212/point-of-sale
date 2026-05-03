@@ -10,6 +10,8 @@ export { Category } from './Category';
 export { Customer } from './Customer';
 export { InventoryMovement } from './InventoryMovement';
 export { Modifier } from './Modifier';
+export { LoyaltyProgram } from './LoyaltyProgram';
+export { LoyaltyPunch } from './LoyaltyPunch';
 export { Order } from './Order';
 export { OrderItem } from './OrderItem';
 export { Product } from './Product';

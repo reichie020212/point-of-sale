@@ -1,11 +1,9 @@
 /**
  * Customers — light CRM.
  *
- * Loyalty default per master Blueprint §6: 1% cashback as points.
- * `loyalty_points` is the canonical balance; movements are tracked as
- * order tips/refunds against this column. TODO(policy-loyalty): once
- * the loyalty model is locked, move to a dedicated `loyalty_movements`
- * ledger so balances are auditable.
+ * `loyalty_points` is a legacy 1pt-per-cent cashback balance kept
+ * around for reporting; the locked §9 loyalty model is punchcard,
+ * which lives in its own ledger (`./loyalty`).
  */
 import { sql } from 'drizzle-orm';
 import { bigint, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
