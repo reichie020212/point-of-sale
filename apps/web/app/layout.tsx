@@ -1,6 +1,8 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
 
+import { PostHogProvider } from '../components/PostHogProvider';
+
 import './globals.css';
 
 import type { Metadata } from 'next';
@@ -44,7 +46,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         lang="en"
         className={`${inter.variable} ${jetbrainsMono.variable} ${fraunces.variable}`}
       >
-        <body>{children}</body>
+        <body>
+          <PostHogProvider>{children}</PostHogProvider>
+        </body>
       </html>
     </ClerkProvider>
   );

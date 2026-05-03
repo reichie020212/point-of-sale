@@ -276,10 +276,43 @@ eas build --platform ios --profile production           # TestFlight + App Store
 
 | Concern           | Tool                                                                    |
 | ----------------- | ----------------------------------------------------------------------- |
-| Error tracking    | Sentry (api + web + mobile)                                             |
-| Product analytics | PostHog                                                                 |
+| Error tracking    | Sentry (api + web shipped, mobile in Phase B)                           |
+| Product analytics | PostHog (web shipped, mobile in Phase B)                                |
 | Logs              | Fly logs → Logtail / Axiom (long-term retention)                        |
-| Uptime            | Better Uptime / Cronitor probing `/healthz` and the WebSocket handshake |
+| Uptime            | Better Uptime / Cronitor probing `/healthz` (liveness) and `/readyz` (DB + broker) |
+
+#### Sentry env vars (per surface)
+
+All optional in dev/test — without a DSN the SDK is a no-op so `pnpm
+dev` and CI run untouched. Production sets one DSN per surface so
+events route to separate Sentry projects.
+
+| Var                          | Surface       | Purpose                                                  |
+| ---------------------------- | ------------- | -------------------------------------------------------- |
+| `SENTRY_DSN`                 | API + Web SSR | Server runtime DSN                                       |
+| `NEXT_PUBLIC_SENTRY_DSN`     | Web client    | Browser DSN (bundled into client JS)                     |
+| `SENTRY_RELEASE`             | All           | Git sha; CI sets from `$GITHUB_SHA`                      |
+| `SENTRY_ENVIRONMENT`         | All           | `production` / `staging` / `preview`                     |
+| `SENTRY_TRACES_SAMPLE_RATE`  | API           | 0..1; defaults 1.0 for the beta                          |
+| `SENTRY_AUTH_TOKEN`          | Build-time    | Web source-map upload                                    |
+| `SENTRY_ORG` + `SENTRY_PROJECT` | Build-time | Web source-map upload routing                            |
+
+PII scrubbing is hard-wired at SDK init: `pin_hash`, `device_token`,
+`stripe_customer_id`, `authorization` / `cookie` headers, customer
+`email` / `phone`, and cardholder fields (`pan`, `cvv`, etc.) are
+redacted from every event before transport. See
+`apps/api/src/observability/scrub.ts` and `apps/web/lib/scrub.ts`.
+
+#### PostHog env vars
+
+| Var                            | Where      | Purpose                                       |
+| ------------------------------ | ---------- | --------------------------------------------- |
+| `NEXT_PUBLIC_POSTHOG_KEY`      | Web client | Project API key                               |
+| `NEXT_PUBLIC_POSTHOG_HOST`     | Web client | Defaults to `https://us.i.posthog.com`        |
+
+Identify-on-sign-in uses Clerk's `userId` (no email pushed). The web
+funnel events to wire next: `pricing_viewed`, `signup_completed`,
+`onboarding_completed`, `checkout_started`, `subscription_activated`.
 
 ### 2.10 Stripe (billing)
 

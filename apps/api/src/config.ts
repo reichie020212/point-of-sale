@@ -52,6 +52,21 @@ const ConfigSchema = z.object({
   STRIPE_PRICE_BUSINESS: z.string().optional(),
   BILLING_SUCCESS_URL: z.string().url().default('http://localhost:3000/dashboard/billing?status=success'),
   BILLING_CANCEL_URL: z.string().url().default('http://localhost:3000/pricing?status=canceled'),
+
+  /**
+   * Observability. All optional in dev/test. When SENTRY_DSN is unset
+   * the SDK is initialized as no-op (events still flow through the
+   * code paths but never reach the network). Production sets:
+   *   - SENTRY_DSN: project DSN from sentry.io
+   *   - SENTRY_RELEASE: git sha (CI injects from $GITHUB_SHA)
+   *   - SENTRY_ENVIRONMENT: "production" / "staging" / "preview"
+   *   - SENTRY_TRACES_SAMPLE_RATE: 0..1; defaults to 1.0 for the beta
+   *     since traffic is low and we want full visibility.
+   */
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_RELEASE: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1.0),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

@@ -31,6 +31,7 @@ import rawBody from 'fastify-raw-body';
 import { clerkAuthPlugin } from './auth/clerk.js';
 import { loadConfig } from './config.js';
 import { initDb, getDb } from './db.js';
+import { initSentry, Sentry } from './observability/sentry.js';
 import { authRoutes } from './routes/auth.js';
 import { billingRoutes } from './routes/billing.js';
 import { categoryRoutes } from './routes/categories.js';
@@ -75,6 +76,9 @@ export interface BuildServerOptions {
 
 export async function buildServer(opts: BuildServerOptions = {}) {
   const config = loadConfig();
+  // Sentry has to init before Fastify so its auto-instrumentation
+  // can wrap http / postgres / redis spans on the way out.
+  initSentry(config);
   initDb(config.DATABASE_URL);
   const broker = opts.broker ?? createBroker(config.REDIS_URL);
   const ownsBroker = !opts.broker;
@@ -133,10 +137,21 @@ export async function buildServer(opts: BuildServerOptions = {}) {
     if (ownsBroker) await broker.close();
   });
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err, request, reply) => {
     app.log.error({ err }, 'unhandled error');
+    // Forward 5xx-class errors (and zod / unhandled exceptions) to
+    // Sentry. 4xx-class errors are user-supplied bad input — those
+    // would just create noise in the dashboard.
+    const status = err.statusCode ?? 500;
+    if (status >= 500) {
+      Sentry.withScope((scope) => {
+        scope.setTag('route', request.routeOptions.url ?? request.url);
+        scope.setTag('method', request.method);
+        Sentry.captureException(err);
+      });
+    }
     if (reply.sent) return;
-    reply.code(err.statusCode ?? 500).send({
+    reply.code(status).send({
       error: err.name ?? 'internal_error',
       message: config.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
     });

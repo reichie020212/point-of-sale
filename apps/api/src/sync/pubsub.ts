@@ -48,6 +48,13 @@ export type FanoutListener = (event: SyncFanoutEvent) => void;
 export interface Broker {
   publish(orgId: string, event: SyncFanoutEvent): Promise<void>;
   subscribe(orgId: string, listener: FanoutListener): Promise<() => Promise<void>>;
+  /**
+   * Liveness probe — the readiness endpoint calls this so synthetic
+   * uptime monitors can distinguish "API up but Redis dead" from a
+   * full outage. In-process brokers always succeed; Redis brokers
+   * issue a `PING`. Throws on failure.
+   */
+  ping(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -73,6 +80,10 @@ class InProcessBroker implements Broker {
     return async () => {
       this.emitter.off(ch, listener);
     };
+  }
+
+  async ping(): Promise<void> {
+    // Always healthy: the broker is just an in-process EventEmitter.
   }
 
   async close(): Promise<void> {
@@ -123,6 +134,12 @@ class RedisBroker implements Broker {
         await this.subscriber.unsubscribe(ch);
       }
     };
+  }
+
+  async ping(): Promise<void> {
+    // Both connections share the same Redis; pinging the publisher
+    // is sufficient because failure modes are correlated.
+    await this.publisher.ping();
   }
 
   async close(): Promise<void> {
