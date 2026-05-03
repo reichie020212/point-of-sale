@@ -90,5 +90,12 @@ export {
   type NewSyncIdempotency,
 } from './sync';
 
+// Billing (Stripe)
+export {
+  billingSubscriptions,
+  type BillingSubscription,
+  type NewBillingSubscription,
+} from './billing';
+
 // DB factory
 export { createDb, type Db, type CreateDbOptions } from './db';

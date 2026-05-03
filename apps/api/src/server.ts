@@ -26,11 +26,13 @@ declare global {
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
+import rawBody from 'fastify-raw-body';
 
 import { clerkAuthPlugin } from './auth/clerk.js';
 import { loadConfig } from './config.js';
 import { initDb, getDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
+import { billingRoutes } from './routes/billing.js';
 import { categoryRoutes } from './routes/categories.js';
 import { customerRoutes } from './routes/customers.js';
 import { deviceRoutes } from './routes/devices.js';
@@ -93,6 +95,17 @@ export async function buildServer(opts: BuildServerOptions = {}) {
 
   await app.register(cors, { origin: config.CORS_ORIGINS, credentials: true });
   await app.register(websocket);
+  // fastify-raw-body must register BEFORE the Clerk auth plugin so its
+  // pre-parsing hook fires first; otherwise Clerk reads the body
+  // before raw-body can capture it. Only the Stripe webhook route
+  // opts in via `config: { rawBody: true }`; everywhere else the
+  // default JSON parser still runs untouched.
+  await app.register(rawBody, {
+    field: 'rawBody',
+    global: false,
+    encoding: 'utf8',
+    runFirst: true,
+  });
   await app.register(clerkAuthPlugin, { config });
 
   await app.register(healthRoutes);
@@ -107,6 +120,7 @@ export async function buildServer(opts: BuildServerOptions = {}) {
   await app.register(exportRoutes);
   await app.register(loyaltyRoutes);
   await app.register(syncRoutes);
+  await app.register(billingRoutes({ config }));
   registerSyncHandler(app, { config, broker });
 
   let maintenance: MaintenanceWorker | null = null;

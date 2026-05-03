@@ -26,6 +26,32 @@ const ConfigSchema = z.object({
     .string()
     .default('http://localhost:3000')
     .transform((s) => s.split(',').map((o) => o.trim()).filter(Boolean)),
+
+  /**
+   * Stripe billing config. All four are optional in development /
+   * test so the API can still boot without Stripe wired up — the
+   * billing endpoints return 503 when the secret key is missing,
+   * the rest of the surface keeps working. Production deployments
+   * MUST set all four (the bootstrap has no way to enforce this
+   * because we want CI to run without leaking a real Stripe key).
+   *
+   * - STRIPE_SECRET_KEY: `sk_test_...` or `sk_live_...`
+   * - STRIPE_WEBHOOK_SECRET: `whsec_...` from `stripe listen` (dev)
+   *   or the dashboard endpoint settings (prod). Used to verify the
+   *   HMAC signature on incoming webhook events.
+   * - STRIPE_PRICE_PRO / STRIPE_PRICE_BUSINESS: the Stripe Price
+   *   object ids (`price_...`) for the two paid tiers. Configured
+   *   in Stripe to be PHP recurring monthly per §9.
+   * - BILLING_SUCCESS_URL / BILLING_CANCEL_URL: where Stripe
+   *   Checkout redirects after the cardholder finishes / abandons
+   *   the hosted page. Defaults sit on the local web origin.
+   */
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
+  BILLING_SUCCESS_URL: z.string().url().default('http://localhost:3000/dashboard/billing?status=success'),
+  BILLING_CANCEL_URL: z.string().url().default('http://localhost:3000/pricing?status=canceled'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

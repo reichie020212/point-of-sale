@@ -63,6 +63,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             <Link href="/dashboard/settings" className="hover:text-ink">
               Settings
             </Link>
+            <Link href="/dashboard/billing" className="hover:text-ink">
+              Billing
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">

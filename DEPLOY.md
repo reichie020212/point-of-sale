@@ -167,6 +167,11 @@ flyctl secrets set \
   REDIS_URL=...                   \
   JWT_SECRET=...                  \
   STRIPE_SECRET_KEY=...           \
+  STRIPE_WEBHOOK_SECRET=...       \
+  STRIPE_PRICE_PRO=price_...      \
+  STRIPE_PRICE_BUSINESS=price_... \
+  BILLING_SUCCESS_URL=https://app.counter.app/dashboard/billing?status=success \
+  BILLING_CANCEL_URL=https://counter.app/pricing?status=canceled \
   S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com \
   S3_ACCESS_KEY=...               \
   S3_SECRET_KEY=...               \
@@ -278,10 +283,32 @@ eas build --platform ios --profile production           # TestFlight + App Store
 
 ### 2.10 Stripe (billing)
 
-1. Create Stripe products: **Pro** ($29/mo, $290/yr), **Business** ($79/mo, $790/yr).
-2. Create a 14-day Pro trial price, no card required.
-3. Webhook: `https://api.counter.app/webhooks/stripe` — set the signing secret in Fly secrets as `STRIPE_WEBHOOK_SECRET`.
-4. Test mode keys live in dev/staging Vercel + Fly envs; live keys live in production only.
+Phase A ships Stripe Checkout (hosted) + Customer Portal. Monthly PHP
+billing only; no trial; no annual. The webhook is the only path that
+flips `organizations.tier`.
+
+1. **Stripe products + prices**: create one Product per paid tier
+   (Pro, Business). Each gets a recurring monthly Price in **PHP**
+   (`₱1,499` and `₱3,999` are the placeholders shown on the marketing
+   page). Copy the Price ids (`price_…`) into `STRIPE_PRICE_PRO` and
+   `STRIPE_PRICE_BUSINESS` env vars.
+2. **Webhook**: point Stripe at `https://api.counter.app/api/v1/billing/webhook`.
+   Subscribe to: `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`,
+   `invoice.payment_failed`. Copy the signing secret into Fly secrets
+   as `STRIPE_WEBHOOK_SECRET`. (Local dev: run `stripe listen
+   --forward-to localhost:4000/api/v1/billing/webhook` and use the
+   `whsec_…` value it prints.)
+3. **Customer Portal**: enable in the Stripe dashboard
+   (Billing → Customer Portal). Configure allowed actions (cancel,
+   update payment method, view invoices); these surface in the portal
+   UI without code changes here.
+4. **Redirect URLs**: `BILLING_SUCCESS_URL` and `BILLING_CANCEL_URL`
+   must be reachable from the cardholder's browser. Defaults point at
+   `localhost:3000`.
+5. **Test mode** keys live in dev/staging Vercel + Fly envs; live keys
+   live in production only. The API tolerates missing Stripe env vars
+   (returns 503 on billing endpoints) so non-Stripe tests still pass.
 
 ---
 

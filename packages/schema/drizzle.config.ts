@@ -10,6 +10,7 @@ const databaseUrl = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/cou
 export default {
   schema: [
     './src/auth.ts',
+    './src/billing.ts',
     './src/catalog.ts',
     './src/customers.ts',
     './src/devices.ts',

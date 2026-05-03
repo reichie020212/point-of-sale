@@ -45,9 +45,15 @@ export interface ClerkPluginOptions {
 /**
  * Routes that don't require auth. `/api/v1/devices/pair` is the
  * exchange endpoint a freshly-installed app calls before it has a
- * token to send.
+ * token to send. `/api/v1/billing/webhook` authenticates via Stripe
+ * HMAC signature instead of a bearer token — the route handler
+ * verifies the signature against `STRIPE_WEBHOOK_SECRET` itself.
  */
-const PUBLIC_PREFIXES = ['/healthz', '/api/v1/devices/pair'];
+const PUBLIC_PREFIXES = [
+  '/healthz',
+  '/api/v1/devices/pair',
+  '/api/v1/billing/webhook',
+];
 
 export const clerkAuthPlugin = fp<ClerkPluginOptions>(async (app, opts) => {
   const { config } = opts;
