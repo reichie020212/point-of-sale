@@ -3,12 +3,12 @@
  *
  * Reactive read of the local Watermelon `orders` table. New sales —
  * whether finalized on this device or arriving via broker fan-out from
- * another device — appear without manual refresh.
- *
- * Refund flow is still TODO; this screen is currently view-only.
+ * another device — appear without manual refresh. Tapping a row opens
+ * the order detail screen which gates the refund flow.
  */
 import { nativeTheme } from '@counter/tokens/native';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { Link } from 'expo-router';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Money } from '../src/components/Money';
 import { useOrders, type OrderSummary } from '../src/hooks/useOrders';
@@ -38,16 +38,27 @@ export default function OrdersScreen() {
 function OrderRow({ order }: { order: OrderSummary }) {
   const time = new Date(order.createdAtMs).toLocaleString();
   const synced = order.syncedAtMs != null;
+  const refundedHint = order.status === 'refunded'
+    ? 'refunded'
+    : order.status === 'partially_refunded'
+      ? 'partial refund'
+      : synced ? 'synced' : 'queued';
   return (
-    <View style={styles.row}>
-      <View style={styles.rowMeta}>
-        <Text style={styles.rowTime}>{time}</Text>
-        <Text style={styles.rowMethod}>
-          {order.paymentMethod} · {synced ? 'synced' : 'queued'}
-        </Text>
-      </View>
-      <Money cents={order.totalCents} style={styles.rowTotal} />
-    </View>
+    <Link href={{ pathname: '/orders/[id]', params: { id: order.id } }} asChild>
+      <Pressable
+        style={styles.row}
+        accessibilityRole="button"
+        accessibilityLabel={`Order ${time}, ${refundedHint}`}
+      >
+        <View style={styles.rowMeta}>
+          <Text style={styles.rowTime}>{time}</Text>
+          <Text style={styles.rowMethod}>
+            {order.paymentMethod} · {refundedHint}
+          </Text>
+        </View>
+        <Money cents={order.totalCents} style={styles.rowTotal} />
+      </Pressable>
+    </Link>
   );
 }
 

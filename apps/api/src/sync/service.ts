@@ -30,6 +30,7 @@ import {
   orders,
   organizations,
   products,
+  refunds,
   shifts,
   syncIdempotency,
   variants,
@@ -72,6 +73,7 @@ const SUPPORTED: ReadonlySet<SyncTable> = new Set([
   'order_items',
   'orders',
   'products',
+  'refunds',
   'shifts',
   'variants',
 ]);
@@ -336,6 +338,53 @@ const writers: Record<string, Writer> = {
       .insert(inventoryMovements)
       .values(values)
       .onConflictDoNothing({ target: inventoryMovements.id });
+    return id;
+  },
+
+  refunds: async (tx, orgId, data, version) => {
+    const id = asString(data.id);
+    const orderId = asString(data.order_id ?? data.orderId);
+    const amountCents = asNumber(data.amount_cents ?? data.amountCents);
+    if (!id || !orderId || amountCents === undefined) return null;
+
+    // Compute the new order status from the cumulative refund total.
+    // We read the order + sum of prior refunds inside the transaction
+    // so two simultaneous PUSHes from different devices both see a
+    // consistent view. If the cumulative total reaches the order's
+    // `totalCents`, mark `refunded`; otherwise `partially_refunded`.
+    const [order] = await tx
+      .select({ totalCents: orders.totalCents })
+      .from(orders)
+      .where(and(eq(orders.id, orderId), eq(orders.orgId, orgId)))
+      .limit(1);
+    if (!order) return null;
+
+    const values = {
+      id,
+      orgId,
+      orderId,
+      amountCents,
+      reason: asString(data.reason) ?? null,
+      processedById: asString(data.processed_by_id ?? data.processedById) ?? null,
+      paymentReference: asString(data.payment_reference ?? data.paymentReference) ?? null,
+      clientOpId: asString(data.client_op_id ?? data.clientOpId) ?? null,
+      version,
+    };
+    await tx.insert(refunds).values(values).onConflictDoNothing({ target: refunds.id });
+
+    const [refundedTotal] = await tx
+      .select({ sum: sql<string>`coalesce(sum(${refunds.amountCents}), 0)` })
+      .from(refunds)
+      .where(and(eq(refunds.orderId, orderId), eq(refunds.orgId, orgId)));
+    const refundedSum = Number(refundedTotal?.sum ?? 0);
+    const newStatus: 'refunded' | 'partially_refunded' =
+      refundedSum >= order.totalCents ? 'refunded' : 'partially_refunded';
+
+    await tx
+      .update(orders)
+      .set({ status: newStatus, version, updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.orgId, orgId)));
+
     return id;
   },
 

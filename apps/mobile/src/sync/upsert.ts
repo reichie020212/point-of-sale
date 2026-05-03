@@ -41,6 +41,7 @@ const SUPPORTED: ReadonlySet<SyncTable> = new Set([
   'order_items',
   'orders',
   'products',
+  'refunds',
   'shifts',
   'variants',
 ]);
@@ -132,11 +133,20 @@ const COLUMNS: Record<SyncTable, string[]> = {
     'updated_at',
     'deleted_at',
   ],
-  // Refunds / devices not mirrored locally; treat as no-op.
+  refunds: [
+    'client_op_id',
+    'org_id',
+    'order_id',
+    'amount_cents',
+    'reason',
+    'processed_by_id',
+    'payment_reference',
+    'created_at',
+  ],
+  // Devices not mirrored locally; treat as no-op.
   // Organizations is intercepted upstream (useSync routes it to
   // useOrgSettings) before reaching applyServerChanges, so the
   // empty allowlist here is just for type-completeness.
-  refunds: [],
   devices: [],
   organizations: [],
 } as const;

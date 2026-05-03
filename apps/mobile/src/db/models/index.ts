@@ -13,5 +13,6 @@ export { Modifier } from './Modifier';
 export { Order } from './Order';
 export { OrderItem } from './OrderItem';
 export { Product } from './Product';
+export { Refund } from './Refund';
 export { Shift } from './Shift';
 export { Variant } from './Variant';

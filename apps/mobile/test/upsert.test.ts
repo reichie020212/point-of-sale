@@ -159,14 +159,30 @@ test('coerces ISO timestamps to milliseconds', async () => {
   assert.equal(created._raw.updated_at, Date.parse('2026-05-02T12:34:56.000Z'));
 });
 
-test('refunds is a no-op (not yet mirrored locally)', async () => {
+test('refunds upserts the snake_case allowlist', async () => {
   const { db, writes } = fakeDatabase('refunds', []);
   await applyServerChanges({
     database: db,
     table: 'refunds',
-    records: [{ id: 'srv-7' }],
+    records: [
+      {
+        id: 'srv-refund-1',
+        org_id: 'org-1',
+        order_id: 'order-1',
+        amount_cents: 350,
+        reason: 'Customer changed mind',
+        client_op_id: 'op_refund_abc',
+        created_at: '2026-05-03T10:00:00.000Z',
+      },
+    ],
   });
-  assert.equal(writes.length, 0);
+  assert.equal(writes.length, 1);
+  const created = writes[0]!.batch[0]!;
+  assert.equal(created._raw.server_id, 'srv-refund-1');
+  assert.equal(created._raw.amount_cents, 350);
+  assert.equal(created._raw.reason, 'Customer changed mind');
+  assert.equal(created._raw.client_op_id, 'op_refund_abc');
+  assert.equal(typeof created._raw.created_at, 'number');
 });
 
 test('drops camelCase keys (bug-shape sentinel for the snake_case allowlist)', async () => {

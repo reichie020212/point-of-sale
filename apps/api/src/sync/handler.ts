@@ -22,8 +22,13 @@ import {
   categories,
   customers,
   devices,
+  inventoryMovements,
+  orderItems,
+  orders,
   organizations,
   products,
+  refunds,
+  shifts,
   variants,
   modifiers,
 } from '@counter/schema';
@@ -300,6 +305,28 @@ export function registerSyncHandler(app: FastifyInstance, deps: SyncHandlerDeps)
               version: result.version,
               record,
             });
+
+            // A refund mutation also flips the parent order's
+            // `status` (paid → partially_refunded / refunded) inside
+            // the same transaction. Emit a second EVENT for the order
+            // row so other devices see the status change without
+            // waiting for the next PULL.
+            if (op.table === 'refunds' && row) {
+              const orderId = (row as { orderId?: unknown }).orderId;
+              if (typeof orderId === 'string' && orderId.length > 0) {
+                const orderRow = await fetchRecord(getDb(), 'orders', orderId);
+                if (orderRow) {
+                  await deps.broker.publish(org.id, {
+                    type: 'record_updated',
+                    orgId: org.id,
+                    table: 'orders',
+                    id: orderId,
+                    version: result.version,
+                    record: serializeRow(orderRow),
+                  });
+                }
+              }
+            }
           }
           if (deviceId && highestVersion > 0n) {
             try {
@@ -446,6 +473,41 @@ const SUPPORTED_PULLS: Partial<
       .from(customers)
       .where(and(eq(customers.orgId, orgId), gt(customers.version, cursor)))
       .orderBy(asc(customers.version))
+      .limit(PULL_PAGE_SIZE),
+  orders: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(orders)
+      .where(and(eq(orders.orgId, orgId), gt(orders.version, cursor)))
+      .orderBy(asc(orders.version))
+      .limit(PULL_PAGE_SIZE),
+  order_items: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(orderItems)
+      .where(and(eq(orderItems.orgId, orgId), gt(orderItems.version, cursor)))
+      .orderBy(asc(orderItems.version))
+      .limit(PULL_PAGE_SIZE),
+  refunds: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(refunds)
+      .where(and(eq(refunds.orgId, orgId), gt(refunds.version, cursor)))
+      .orderBy(asc(refunds.version))
+      .limit(PULL_PAGE_SIZE),
+  inventory_movements: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(inventoryMovements)
+      .where(and(eq(inventoryMovements.orgId, orgId), gt(inventoryMovements.version, cursor)))
+      .orderBy(asc(inventoryMovements.version))
+      .limit(PULL_PAGE_SIZE),
+  shifts: (db, orgId, cursor) =>
+    db
+      .select()
+      .from(shifts)
+      .where(and(eq(shifts.orgId, orgId), gt(shifts.version, cursor)))
+      .orderBy(asc(shifts.version))
       .limit(PULL_PAGE_SIZE),
   // The org row is one-row-per-device-session; emit it on HELLO if
   // its `version` is ahead of the device's cursor. This is what

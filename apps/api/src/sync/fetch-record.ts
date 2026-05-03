@@ -12,10 +12,9 @@
  * a destroy signal. We do NOT filter by `isNull(deletedAt)` here —
  * the receiving devices need to see the deletion.
  *
- * Tables not yet on the sync loop (`refunds`, `devices`,
- * `organizations`) return `null`; the caller falls back to a
- * minimal `{ id }` payload so a missing fetch doesn't crash the
- * EVENT publish.
+ * Tables not yet on the sync loop (`devices`) return `null`; the
+ * caller falls back to a minimal `{ id }` payload so a missing fetch
+ * doesn't crash the EVENT publish.
  */
 import {
   categories,
@@ -26,6 +25,7 @@ import {
   orders,
   organizations,
   products,
+  refunds,
   shifts,
   variants,
   type Db,
@@ -84,7 +84,10 @@ export async function fetchRecord(
       const [row] = await db.select().from(organizations).where(eq(organizations.id, id)).limit(1);
       return row ?? null;
     }
-    case 'refunds':
+    case 'refunds': {
+      const [row] = await db.select().from(refunds).where(eq(refunds.id, id)).limit(1);
+      return row ?? null;
+    }
     case 'devices':
       // Not on the sync loop yet — fall back to id-only EVENT payload.
       return null;

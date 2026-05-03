@@ -132,10 +132,12 @@ export const refunds = pgTable(
       .references(() => orders.id, { onDelete: 'restrict' }),
     /** Always positive; full or partial refund of an order's totalCents. */
     amountCents: integer('amount_cents').notNull(),
-    /** TODO(policy-refunds): reason taxonomy is open until the user picks. */
+    /** Free-text reason; required at the UI layer (cashier types it before submit). */
     reason: text('reason'),
     processedById: uuid('processed_by_id').references(() => users.id, { onDelete: 'set null' }),
     paymentReference: text('payment_reference'),
+    /** Idempotency key from the client; dedupes retries on flaky networks. */
+    clientOpId: text('client_op_id'),
     version: bigint('version', { mode: 'bigint' }).notNull().default(sql`0`),
     createdAt: timestamp('created_at', { withTimezone: true })
       .default(sql`now()`)
@@ -145,6 +147,7 @@ export const refunds = pgTable(
     orgIdx: index('refunds_org_id_idx').on(table.orgId),
     orderIdx: index('refunds_order_idx').on(table.orderId),
     versionIdx: index('refunds_org_version_idx').on(table.orgId, table.version),
+    clientOpIdIdx: index('refunds_client_op_id_idx').on(table.orgId, table.clientOpId),
   }),
 );
 

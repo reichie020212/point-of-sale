@@ -19,6 +19,7 @@ import {
   orders,
   organizations,
   products,
+  refunds,
   syncIdempotency,
   users,
   variants,
@@ -90,6 +91,7 @@ test('sync push', async (t) => {
 
   const cleanup = async () => {
     await db.delete(syncIdempotency).where(eq(syncIdempotency.orgId, orgId));
+    await db.delete(refunds).where(eq(refunds.orgId, orgId));
     await db.delete(orderItems).where(eq(orderItems.orgId, orgId));
     await db.delete(inventoryMovements).where(eq(inventoryMovements.orgId, orgId));
     await db.delete(orders).where(eq(orders.orgId, orgId));
@@ -218,22 +220,80 @@ test('sync push', async (t) => {
       assert.equal(movement.delta, -1);
     });
 
-    await t.test('unsupported_table reports error without affecting siblings', async () => {
+    await t.test('partial refund flips order to partially_refunded', async () => {
+      const refundId = randomUUID();
       const results = await processPush({
         db,
         orgId,
         ops: [
           {
             clientOpId: randomUUID(),
-            // refunds is not in the SUPPORTED set yet
             table: 'refunds',
             asDelta: false,
-            data: { id: randomUUID() },
+            data: {
+              id: refundId,
+              order_id: orderId,
+              amount_cents: 350, // partial — order total was 800
+              reason: 'Customer changed mind',
+            },
+          },
+        ],
+      });
+      assert.equal(results.length, 1);
+      assert.equal(results[0]?.ok, true);
+
+      const [refundRow] = await db.select().from(refunds).where(eq(refunds.id, refundId));
+      assert.ok(refundRow);
+      assert.equal(refundRow.amountCents, 350);
+
+      const [orderRow] = await db.select().from(orders).where(eq(orders.id, orderId));
+      assert.equal(orderRow?.status, 'partially_refunded');
+    });
+
+    await t.test('full refund (cumulative) flips order to refunded', async () => {
+      const secondRefundId = randomUUID();
+      const results = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'refunds',
+            asDelta: false,
+            data: {
+              id: secondRefundId,
+              order_id: orderId,
+              amount_cents: 450, // 350 + 450 = 800 = order total
+              reason: 'Returned remaining drink',
+            },
+          },
+        ],
+      });
+      assert.equal(results[0]?.ok, true);
+
+      const [orderRow] = await db.select().from(orders).where(eq(orders.id, orderId));
+      assert.equal(orderRow?.status, 'refunded');
+    });
+
+    await t.test('refund with bad order_id rejected as invalid_payload', async () => {
+      const results = await processPush({
+        db,
+        orgId,
+        ops: [
+          {
+            clientOpId: randomUUID(),
+            table: 'refunds',
+            asDelta: false,
+            data: {
+              id: randomUUID(),
+              order_id: randomUUID(), // not an existing order
+              amount_cents: 100,
+            },
           },
         ],
       });
       assert.equal(results[0]?.ok, false);
-      assert.match(results[0]?.error ?? '', /unsupported_table/);
+      assert.match(results[0]?.error ?? '', /invalid_payload/);
     });
   } finally {
     await cleanup();
