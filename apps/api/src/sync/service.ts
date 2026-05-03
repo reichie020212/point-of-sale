@@ -102,6 +102,31 @@ function asDate(value: unknown): Date | null | undefined {
 }
 
 /**
+ * Parse a refund's per-line qty payload. Accepts either a JSON string
+ * (mobile's SQLite serialization) or an already-decoded object. Drops
+ * non-positive / non-finite entries defensively. Returns {} on
+ * anything unrecognizable so the sync push doesn't reject otherwise-
+ * valid refunds.
+ */
+function parseLineQtys(value: unknown): Record<string, number> {
+  let raw: unknown = value;
+  if (typeof raw === 'string') {
+    if (raw.length === 0) return {};
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[k] = v;
+  }
+  return out;
+}
+
+/**
  * Per-table writer. Each writer:
  *   - extracts the fields it knows about from `data`,
  *   - ON CONFLICT (id) DO UPDATE for catalog/customer rows (LWW),
@@ -373,6 +398,11 @@ const writers: Record<string, Writer> = {
     const taxCents = asNumber(data.tax_cents ?? data.taxCents) ?? 0;
     const tipCents = asNumber(data.tip_cents ?? data.tipCents) ?? 0;
     const discountCents = asNumber(data.discount_cents ?? data.discountCents) ?? 0;
+    // Per-line qtys: `{ [orderItemId]: qty }`. The mobile client may
+    // send either a JSON-encoded string (its SQLite storage shape) or
+    // a structured object (when forwarded from another server's PULL);
+    // accept both. Falls back to {} for pre-v6 clients.
+    const lineQtysJson = parseLineQtys(data.line_qtys_json ?? data.lineQtysJson);
 
     const values = {
       id,
@@ -383,6 +413,7 @@ const writers: Record<string, Writer> = {
       taxCents,
       tipCents,
       discountCents,
+      lineQtysJson,
       reason: asString(data.reason) ?? null,
       processedById: asString(data.processed_by_id ?? data.processedById) ?? null,
       paymentReference: asString(data.payment_reference ?? data.paymentReference) ?? null,

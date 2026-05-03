@@ -51,12 +51,19 @@ export interface RefundOrderTotals {
 }
 
 /** Sum of prior refunds' breakdown fields. Used for closing-out detection
- *  and remainder capture. Pass `{0,0,0,0}` if this is the first refund. */
+ *  and remainder capture. Pass `ZERO_PRIORS` if this is the first refund.
+ *
+ *  `lineQtys` is the per-line aggregate: `{ [orderItemId]: Σ qty }`
+ *  across every prior refund of this order. Drives `availableQty()` so
+ *  the refund screen can hard-cap the stepper and prevent the same unit
+ *  being refunded twice across multiple partials.
+ */
 export interface PriorRefundsSum {
   subtotalCents: number;
   taxCents: number;
   tipCents: number;
   discountCents: number;
+  lineQtys: Record<string, number>;
 }
 
 export interface RefundBreakdown {
@@ -83,7 +90,20 @@ export const ZERO_PRIORS: PriorRefundsSum = {
   taxCents: 0,
   tipCents: 0,
   discountCents: 0,
+  lineQtys: {},
 };
+
+/**
+ * How many units of `line` remain refundable after prior refunds.
+ * Floors at zero (defensive: an over-refunded line in legacy data
+ * should never report a negative max). The UI uses this to clamp the
+ * stepper; `validateRefund` uses it to reject submissions that would
+ * push past the cap.
+ */
+export function availableQty(line: RefundableLine, priors: PriorRefundsSum): number {
+  const refunded = priors.lineQtys[line.id] ?? 0;
+  return Math.max(0, line.originalQty - refunded);
+}
 
 export function clampQty(value: number, max: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -217,12 +237,15 @@ export interface RefundValidation {
 /**
  * Validate a refund submission. Reason text is required (HANDOFF §9
  * locked decision: "reason required"); selection must move at least
- * one unit and the computed breakdown must be a positive amount.
+ * one unit, the computed breakdown must be a positive amount, and no
+ * single line may exceed `availableQty` once prior refunds are
+ * accounted for.
  */
 export function validateRefund(
   lines: RefundableLine[],
   selection: RefundSelection,
   reasonText: string,
+  priors: PriorRefundsSum = ZERO_PRIORS,
 ): RefundValidation {
   if (totalSelectedQty(selection) <= 0) {
     return { ok: false, reason: 'Select at least one item to refund.' };
@@ -233,12 +256,30 @@ export function validateRefund(
   if (computeRefundCents(lines, selection) <= 0) {
     return { ok: false, reason: 'Refund amount must be greater than zero.' };
   }
+  for (const line of lines) {
+    const want = selection.qtyById[line.id] ?? 0;
+    if (want <= 0) continue;
+    const max = availableQty(line, priors);
+    if (want > max) {
+      return {
+        ok: false,
+        reason: `${line.nameSnapshot}: ${want} requested, only ${max} remaining.`,
+      };
+    }
+  }
   return { ok: true };
 }
 
-/** "Select all units of every line" — the one-tap full-refund preset. */
-export function selectAll(lines: RefundableLine[]): RefundSelection {
+/** "Select all remaining units of every line" — the one-tap
+ *  full-refund preset. Skips lines that are already fully refunded. */
+export function selectAll(
+  lines: RefundableLine[],
+  priors: PriorRefundsSum = ZERO_PRIORS,
+): RefundSelection {
   const qtyById: Record<string, number> = {};
-  for (const line of lines) qtyById[line.id] = line.originalQty;
+  for (const line of lines) {
+    const remaining = availableQty(line, priors);
+    if (remaining > 0) qtyById[line.id] = remaining;
+  }
   return { qtyById };
 }

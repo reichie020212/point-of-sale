@@ -154,6 +154,16 @@ export const refunds = pgTable(
     /** Pro-rated share of the order-level discount that's "un-applied"
      *  by this refund — reduces the amount returned to the customer. */
     discountCents: integer('discount_cents').notNull().default(0),
+    /**
+     * Per-line quantities refunded by THIS refund — `{ [orderItemId]: qty }`.
+     * Aggregating across an order's refunds gives "already refunded" per
+     * line, which the mobile UI uses to cap the stepper so the same unit
+     * can't be refunded twice across multiple partials.
+     */
+    lineQtysJson: jsonb('line_qtys_json')
+      .$type<Record<string, number>>()
+      .notNull()
+      .default({}),
     /** Free-text reason; required at the UI layer (cashier types it before submit). */
     reason: text('reason'),
     processedById: uuid('processed_by_id').references(() => users.id, { onDelete: 'set null' }),

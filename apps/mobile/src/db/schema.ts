@@ -14,7 +14,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 5,
+  version: 6,
   tables: [
     tableSchema({
       name: 'categories',
@@ -155,6 +155,7 @@ export const schema = appSchema({
         { name: 'tax_cents', type: 'number' },
         { name: 'tip_cents', type: 'number' },
         { name: 'discount_cents', type: 'number' },
+        { name: 'line_qtys_json', type: 'string', isOptional: true },
         { name: 'reason', type: 'string', isOptional: true },
         { name: 'processed_by_id', type: 'string', isOptional: true },
         { name: 'payment_reference', type: 'string', isOptional: true },

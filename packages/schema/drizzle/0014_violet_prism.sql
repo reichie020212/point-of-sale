@@ -1,0 +1,1 @@
+ALTER TABLE "refunds" ADD COLUMN "line_qtys_json" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -17,6 +17,10 @@
  * v5: refund breakdown columns (subtotal/tax/tip/discount) so partial
  *     refunds can pro-rate tax + discount and so a closing-out refund
  *     can return the tip — pre-v5 refund rows backfill to 0.
+ * v6: refund per-line qty tracking. `line_qtys_json` stores
+ *     `{ [orderItemId]: qty }` so a follow-up refund can cap each
+ *     line's available qty by what was already returned. Pre-v6 rows
+ *     read as null → "no per-line tracking captured."
  */
 import {
   schemaMigrations,
@@ -26,6 +30,15 @@ import {
 
 export const migrations = schemaMigrations({
   migrations: [
+    {
+      toVersion: 6,
+      steps: [
+        addColumns({
+          table: 'refunds',
+          columns: [{ name: 'line_qtys_json', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
     {
       toVersion: 5,
       steps: [

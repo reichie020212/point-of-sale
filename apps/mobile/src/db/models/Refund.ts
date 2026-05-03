@@ -13,6 +13,7 @@ export class Refund extends Model {
   @field('tax_cents') taxCents!: number;
   @field('tip_cents') tipCents!: number;
   @field('discount_cents') discountCents!: number;
+  @text('line_qtys_json') lineQtysJson!: string | null;
   @text('reason') reason!: string | null;
   @text('processed_by_id') processedById!: string | null;
   @text('payment_reference') paymentReference!: string | null;

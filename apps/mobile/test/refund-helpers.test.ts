@@ -13,6 +13,7 @@ import test from 'node:test';
 
 import {
   ZERO_PRIORS,
+  availableQty,
   clampQty,
   computeRefundBreakdown,
   computeRefundCents,
@@ -20,6 +21,7 @@ import {
   selectAll,
   totalSelectedQty,
   validateRefund,
+  type PriorRefundsSum,
   type RefundOrderTotals,
   type RefundableLine,
   type RefundSelection,
@@ -100,10 +102,49 @@ test('isFullRefund', async (t) => {
   });
 });
 
-test('selectAll', () => {
-  const sel = selectAll(lines);
-  assert.deepEqual(sel.qtyById, { 'item-1': 2, 'item-2': 1 });
-  assert.equal(isFullRefund(lines, sel), true);
+test('selectAll', async (t) => {
+  await t.test('with no priors selects every original unit', () => {
+    const sel = selectAll(lines);
+    assert.deepEqual(sel.qtyById, { 'item-1': 2, 'item-2': 1 });
+    assert.equal(isFullRefund(lines, sel), true);
+  });
+  await t.test('with priors selects only the remaining units', () => {
+    const priors: PriorRefundsSum = {
+      ...ZERO_PRIORS,
+      lineQtys: { 'item-1': 1 }, // 1 of 2 already refunded
+    };
+    const sel = selectAll(lines, priors);
+    assert.deepEqual(sel.qtyById, { 'item-1': 1, 'item-2': 1 });
+  });
+  await t.test('skips lines that are already fully refunded', () => {
+    const priors: PriorRefundsSum = {
+      ...ZERO_PRIORS,
+      lineQtys: { 'item-1': 2 }, // line 1 fully refunded
+    };
+    const sel = selectAll(lines, priors);
+    // Line 1 absent, line 2 untouched.
+    assert.deepEqual(sel.qtyById, { 'item-2': 1 });
+  });
+});
+
+test('availableQty', async (t) => {
+  await t.test('returns originalQty when no prior refund', () => {
+    assert.equal(availableQty(lines[0]!, ZERO_PRIORS), 2);
+  });
+  await t.test('subtracts prior refunded qty for that line', () => {
+    const priors: PriorRefundsSum = {
+      ...ZERO_PRIORS,
+      lineQtys: { 'item-1': 1 },
+    };
+    assert.equal(availableQty(lines[0]!, priors), 1);
+  });
+  await t.test('floors at zero on over-refunded legacy data', () => {
+    const priors: PriorRefundsSum = {
+      ...ZERO_PRIORS,
+      lineQtys: { 'item-1': 99 },
+    };
+    assert.equal(availableQty(lines[0]!, priors), 0);
+  });
 });
 
 test('computeRefundBreakdown — partial refund', async (t) => {
@@ -278,5 +319,25 @@ test('validateRefund', async (t) => {
     ];
     const v = validateRefund(free, { qtyById: { free: 1 } }, 'Promo');
     assert.equal(v.ok, false);
+  });
+  await t.test('rejects over-refund of a line already partially refunded', () => {
+    // line item-1: originalQty 2, 1 already refunded by a prior pass.
+    // Cashier tries to refund qty=2 again — must be rejected.
+    const priors: PriorRefundsSum = {
+      ...ZERO_PRIORS,
+      lineQtys: { 'item-1': 1 },
+    };
+    const sel: RefundSelection = { qtyById: { 'item-1': 2 } };
+    const v = validateRefund(lines, sel, 'Trying to over-refund', priors);
+    assert.equal(v.ok, false);
+    assert.match(v.reason ?? '', /only 1 remaining/i);
+  });
+  await t.test('accepts selection within remaining cap', () => {
+    const priors: PriorRefundsSum = {
+      ...ZERO_PRIORS,
+      lineQtys: { 'item-1': 1 },
+    };
+    const sel: RefundSelection = { qtyById: { 'item-1': 1 } };
+    assert.equal(validateRefund(lines, sel, 'Remaining unit', priors).ok, true);
   });
 });

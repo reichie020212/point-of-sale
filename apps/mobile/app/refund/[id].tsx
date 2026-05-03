@@ -42,6 +42,7 @@ import { track } from '../../src/observability/funnel';
 import { useAuth } from '../../src/state/auth';
 import { useDevice } from '../../src/state/device';
 import {
+  availableQty,
   clampQty,
   computeRefundBreakdown,
   selectAll as buildSelectAll,
@@ -132,12 +133,15 @@ export default function RefundScreen() {
     });
   };
 
-  const onSelectAll = () => setSelection(buildSelectAll(lines));
+  const onSelectAll = () => {
+    if (!detail) return;
+    setSelection(buildSelectAll(lines, detail.priorRefunds));
+  };
   const onClear = () => setSelection({ qtyById: {} });
 
   const onSubmit = async () => {
     setError(null);
-    const v = validateRefund(lines, selection, reason);
+    const v = validateRefund(lines, selection, reason, detail?.priorRefunds);
     if (!v.ok) {
       setError(v.reason ?? 'Invalid refund');
       return;
@@ -151,6 +155,14 @@ export default function RefundScreen() {
       const refundClientOpId = makeOpId('refund');
       const orgId = identity?.orgId ?? '';
       const deviceId = identity?.deviceId ?? '';
+      // Snapshot the per-line selection so a follow-up refund knows
+      // exactly which units are off-limits. Empty entries pruned —
+      // null-ish JSON ({}) reads as "no per-line tracking captured."
+      const lineQtysSnapshot: Record<string, number> = {};
+      for (const [k, qty] of Object.entries(selection.qtyById)) {
+        if (qty > 0) lineQtysSnapshot[k] = qty;
+      }
+      const lineQtysJson = JSON.stringify(lineQtysSnapshot);
       // Closing-out is the source-of-truth for status: a single full
       // refund OR the last of multiple partials both flip the order
       // to `refunded`. The server recomputes from cumulative refund
@@ -190,6 +202,7 @@ export default function RefundScreen() {
           raw.tax_cents = breakdown.taxCents;
           raw.tip_cents = breakdown.tipCents;
           raw.discount_cents = breakdown.discountCents;
+          raw.line_qtys_json = lineQtysJson;
           raw.reason = reason.trim();
           raw.processed_by_id = activeUser?.id ?? null;
           raw.payment_reference = null;
@@ -239,6 +252,7 @@ export default function RefundScreen() {
           taxCents: breakdown.taxCents,
           tipCents: breakdown.tipCents,
           discountCents: breakdown.discountCents,
+          lineQtysJson: lineQtysSnapshot,
           reason: reason.trim(),
           processedById: activeUser?.id ?? null,
           clientOpId: refundClientOpId,
@@ -303,17 +317,28 @@ export default function RefundScreen() {
         </View>
         {lines.map((line) => {
           const qty = selection.qtyById[line.id] ?? 0;
+          const max = availableQty(line, detail.priorRefunds);
+          const fullyRefunded = max === 0;
+          const partiallyRefunded = !fullyRefunded && max < line.originalQty;
           return (
             <View key={line.id} style={styles.lineRow}>
               <View style={styles.lineMeta}>
-                <Text style={styles.lineName}>{line.nameSnapshot}</Text>
+                <Text style={[styles.lineName, fullyRefunded && styles.lineNameDim]}>
+                  {line.nameSnapshot}
+                </Text>
                 <Text style={styles.lineHint}>
-                  Up to {line.originalQty} · <Money cents={line.unitPriceCents} /> ea
+                  {fullyRefunded
+                    ? 'Already fully refunded'
+                    : partiallyRefunded
+                      ? `${max} of ${line.originalQty} remaining · `
+                      : `Up to ${max} · `}
+                  {!fullyRefunded && <Money cents={line.unitPriceCents} />}
+                  {!fullyRefunded && ' ea'}
                 </Text>
               </View>
               <View style={styles.qtyBlock}>
                 <Pressable
-                  onPress={() => updateLine(line.id, -1, line.originalQty)}
+                  onPress={() => updateLine(line.id, -1, max)}
                   style={[styles.stepBtn, qty <= 0 && styles.stepBtnDisabled]}
                   disabled={qty <= 0}
                   accessibilityLabel={`Decrease ${line.nameSnapshot}`}
@@ -322,9 +347,9 @@ export default function RefundScreen() {
                 </Pressable>
                 <Text style={styles.qtyValue}>{qty}</Text>
                 <Pressable
-                  onPress={() => updateLine(line.id, 1, line.originalQty)}
-                  style={[styles.stepBtn, qty >= line.originalQty && styles.stepBtnDisabled]}
-                  disabled={qty >= line.originalQty}
+                  onPress={() => updateLine(line.id, 1, max)}
+                  style={[styles.stepBtn, qty >= max && styles.stepBtnDisabled]}
+                  disabled={qty >= max}
                   accessibilityLabel={`Increase ${line.nameSnapshot}`}
                 >
                   <Text style={styles.stepBtnText}>+</Text>
@@ -453,6 +478,7 @@ const styles = StyleSheet.create({
   lineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   lineMeta: { flex: 1, paddingRight: 12 },
   lineName: { color: nativeTheme.colors.ink, fontSize: 14, fontWeight: '500' as const },
+  lineNameDim: { color: nativeTheme.colors.ink3 },
   lineHint: { color: nativeTheme.colors.ink3, fontSize: 12 },
   qtyBlock: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepBtn: {

@@ -323,6 +323,8 @@ test('sync push', async (t) => {
 
       // Partial refund: half the items. Tip stays at 0 (all-or-nothing
       // rule); tax pro-rated to floor(120 × 500/1000) = 60.
+      // The mobile client also ships line_qtys_json so a follow-up
+      // refund can hard-cap the stepper at "remaining qty per line".
       const partialRefundId = randomUUID();
       await processPush({
         db,
@@ -340,6 +342,7 @@ test('sync push', async (t) => {
               tax_cents: 60,
               tip_cents: 0,
               discount_cents: 0,
+              line_qtys_json: { [tippedItemId]: 1 },
               reason: 'One drink wrong',
             },
           },
@@ -355,13 +358,19 @@ test('sync push', async (t) => {
       assert.equal(partialRow.tipCents, 0, 'tip must stay at 0 on partial refund');
       assert.equal(partialRow.discountCents, 0);
       assert.equal(partialRow.amountCents, 560);
+      assert.deepEqual(
+        partialRow.lineQtysJson,
+        { [tippedItemId]: 1 },
+        'line_qtys_json must roundtrip so the next refund can derive remaining qty',
+      );
 
       const [afterPartial] = await db.select().from(orders).where(eq(orders.id, tippedOrderId));
       assert.equal(afterPartial?.status, 'partially_refunded');
 
       // Closing-out refund: remaining items, plus the held tip + tax
       // remainder. Σ refunds.amount_cents = 560 + 610 = 1170 =
-      // order.total_cents → status flips to refunded.
+      // order.total_cents → status flips to refunded. line_qtys_json
+      // accepts a JSON string too (mobile's SQLite serialization).
       const closingRefundId = randomUUID();
       await processPush({
         db,
@@ -379,6 +388,7 @@ test('sync push', async (t) => {
               tax_cents: 60,
               tip_cents: 50,
               discount_cents: 0,
+              line_qtys_json: JSON.stringify({ [tippedItemId]: 1 }),
               reason: 'Returned the rest',
             },
           },
@@ -389,6 +399,11 @@ test('sync push', async (t) => {
         .from(refunds)
         .where(eq(refunds.id, closingRefundId));
       assert.equal(closingRow?.tipCents, 50, 'closing-out releases the full tip');
+      assert.deepEqual(
+        closingRow?.lineQtysJson,
+        { [tippedItemId]: 1 },
+        'string-form line_qtys_json must decode to the same object shape',
+      );
 
       const [afterClosing] = await db.select().from(orders).where(eq(orders.id, tippedOrderId));
       assert.equal(
@@ -396,6 +411,20 @@ test('sync push', async (t) => {
         'refunded',
         'order must flip to refunded once cumulative refund matches order.total_cents (incl. tip)',
       );
+
+      // Cumulative line_qtys across the two refunds must equal the
+      // original order quantity (2). This is the data the mobile UI
+      // uses to clamp the stepper on a third (impossible) refund.
+      const allRefunds = await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.orderId, tippedOrderId));
+      let cumQty = 0;
+      for (const r of allRefunds) {
+        const map = r.lineQtysJson as Record<string, number> | null;
+        cumQty += map?.[tippedItemId] ?? 0;
+      }
+      assert.equal(cumQty, 2, 'cumulative refunded qty per line must reach original qty');
     });
 
     await t.test('refund with bad order_id rejected as invalid_payload', async () => {

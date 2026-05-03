@@ -38,6 +38,10 @@ export interface PriorRefundsTotals {
   tipCents: number;
   /** Σ refunds.discount_cents — discount already reversed. */
   discountCents: number;
+  /** `{ [orderItemId]: Σ qty }` aggregated across this order's
+   *  refunds. Drives `availableQty` so the refund screen caps each
+   *  line's stepper at remaining units. */
+  lineQtys: Record<string, number>;
 }
 
 export interface OrderDetail {
@@ -112,15 +116,18 @@ export function useOrderDetail(orderServerId: string | undefined) {
             'tax_cents',
             'tip_cents',
             'discount_cents',
+            'line_qtys_json',
           ])
           .subscribe((refundRows) => {
             if (cancelled) return;
+            const lineQtys: Record<string, number> = {};
             refundsCachedTotals = {
               amountCents: 0,
               subtotalCents: 0,
               taxCents: 0,
               tipCents: 0,
               discountCents: 0,
+              lineQtys,
             };
             for (const r of refundRows) {
               refundsCachedTotals.amountCents += r.amountCents;
@@ -128,6 +135,10 @@ export function useOrderDetail(orderServerId: string | undefined) {
               refundsCachedTotals.taxCents += r.taxCents ?? 0;
               refundsCachedTotals.tipCents += r.tipCents ?? 0;
               refundsCachedTotals.discountCents += r.discountCents ?? 0;
+              const parsed = parseLineQtys(r.lineQtysJson);
+              for (const [lineId, qty] of Object.entries(parsed)) {
+                lineQtys[lineId] = (lineQtys[lineId] ?? 0) + qty;
+              }
             }
             updateDetail(order, lastItems, refundsCachedTotals);
           });
@@ -140,6 +151,7 @@ export function useOrderDetail(orderServerId: string | undefined) {
       taxCents: 0,
       tipCents: 0,
       discountCents: 0,
+      lineQtys: {},
     };
 
     function updateDetail(
@@ -184,4 +196,24 @@ export function useOrderDetail(orderServerId: string | undefined) {
   }, [orderServerId]);
 
   return { detail, loading };
+}
+
+/** Tolerant parser — pre-v6 refund rows have null/empty
+ *  `line_qtys_json`; legacy or corrupt JSON degrades to {} so the rest
+ *  of the math still works. */
+function parseLineQtys(raw: string | null | undefined): Record<string, number> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[k] = v;
+      }
+      return out;
+    }
+    return {};
+  } catch {
+    return {};
+  }
 }

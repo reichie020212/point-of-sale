@@ -146,6 +146,7 @@ const COLUMNS: Record<SyncTable, string[]> = {
     'tax_cents',
     'tip_cents',
     'discount_cents',
+    'line_qtys_json',
     'reason',
     'processed_by_id',
     'payment_reference',
@@ -202,9 +203,10 @@ function toMs(value: unknown): number | null {
 function coerce(column: string, value: unknown): unknown {
   // Date columns end with `_at`. Convert ISO/strings/numbers to ms.
   if (column.endsWith('_at')) return toMs(value);
-  // modifiers_json is stored as a string in SQLite; the server may
-  // hand us either a string or a structured array.
-  if (column === 'modifiers_json' && value !== null && typeof value !== 'string') {
+  // Any *_json column is stored as a string in SQLite. The server may
+  // hand us either a string (already serialized) or a structured
+  // object/array (from Drizzle's jsonb decode); normalize to string.
+  if (column.endsWith('_json') && value !== null && typeof value !== 'string') {
     return JSON.stringify(value);
   }
   return value;
