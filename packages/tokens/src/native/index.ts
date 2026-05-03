@@ -27,6 +27,7 @@ export const nativeTheme = {
     ink3: colors.ink3.hex,
     line: colors.line.hex,
     line2: colors.line2.hex,
+    scrim: colors.scrim.hex,
     accent: colors.accent.hex,
     accentDeep: colors.accentDeep.hex,
     accentSoft: colors.accentSoft.hex,

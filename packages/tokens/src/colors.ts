@@ -19,6 +19,7 @@ export const colors = {
 
   line: { hex: 'rgba(0, 0, 0, 0.07)', use: 'Hairline dividers' },
   line2: { hex: 'rgba(0, 0, 0, 0.12)', use: 'Button borders' },
+  scrim: { hex: 'rgba(0, 0, 0, 0.45)', use: 'Modal / bottom-sheet backdrop' },
 
   accent: {
     oklch: 'oklch(0.72 0.14 70)',

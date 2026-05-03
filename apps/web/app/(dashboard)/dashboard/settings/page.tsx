@@ -6,6 +6,7 @@
  * and currency are pinned at sign-up and can't be changed without a
  * data migration; tier is changed via the billing flow, not here.
  */
+import { ExportButton } from '../../../../components/ExportButton';
 import { TaxRateSettings } from '../../../../components/TaxRateSettings';
 import { TeamPinSettings } from '../../../../components/TeamPinSettings';
 import { TimezoneSettings } from '../../../../components/TimezoneSettings';
@@ -104,6 +105,57 @@ export default async function SettingsPage() {
         </p>
         <TeamPinSettings team={team} />
       </section>
+
+      <section className="rounded-2xl border border-line bg-surface p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-3">
+          Data portability
+        </h2>
+        <p className="mt-2 text-sm text-ink-2">
+          Download a snapshot of your shop data at any time. CSV opens
+          in Excel and Sheets; JSON is the lossless shape for backups
+          and migrations. Owner / manager only.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <ExportEntityRow
+            label="Products"
+            note="Catalog + variants. One row per variant."
+            entity="products"
+          />
+          <ExportEntityRow
+            label="Customers"
+            note="Names, contacts, loyalty point totals."
+            entity="customers"
+          />
+          <ExportEntityRow
+            label="Orders"
+            note="Every completed sale with totals + payment method."
+            entity="orders"
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ExportEntityRow({
+  label,
+  note,
+  entity,
+}: {
+  label: string;
+  note: string;
+  entity: 'products' | 'customers' | 'orders';
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface-2 p-4">
+      <div>
+        <p className="text-sm font-medium text-ink">{label}</p>
+        <p className="mt-1 text-xs text-ink-3">{note}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <ExportButton entity={entity} format="csv" />
+        <ExportButton entity={entity} format="json" />
+      </div>
     </div>
   );
 }
