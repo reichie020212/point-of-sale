@@ -18,6 +18,7 @@ import { Q } from '@nozbe/watermelondb';
 import { create } from 'zustand';
 
 import { database } from '../db';
+import { track } from '../observability/funnel';
 
 import { hashPin, isValidPin } from './pin-hash';
 
@@ -66,6 +67,7 @@ export const useAuth = create<AuthState>((set) => ({
             role,
           },
         });
+        track('pin_signin', { role });
         return { ok: true };
       }
     }

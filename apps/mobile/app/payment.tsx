@@ -31,6 +31,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Money } from '../src/components/Money';
 import { database } from '../src/db';
 import { useLoyalty } from '../src/hooks/useLoyalty';
+import { track, trackOnce } from '../src/observability/funnel';
 import { useAuth } from '../src/state/auth';
 import { useCart } from '../src/state/cart';
 import { useDevice } from '../src/state/device';
@@ -294,6 +295,13 @@ export default function PaymentScreen() {
         }
       }
 
+      track('sale_completed', {
+        method: 'cash',
+        totalCents,
+        tipCents,
+        itemCount: lines.length,
+      });
+      void trackOnce('firstSale', 'first_sale', { method: 'cash', totalCents });
       clear();
       router.replace('/receipt');
     } finally {

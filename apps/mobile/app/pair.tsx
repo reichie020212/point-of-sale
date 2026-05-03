@@ -18,6 +18,7 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ApiError, apiCalls, setDeviceToken } from '../src/api/client';
+import { track } from '../src/observability/funnel';
 import { useDevice } from '../src/state/device';
 
 const CODE_REGEX = /^CNTR-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
@@ -53,6 +54,7 @@ export default function PairScreen() {
         deviceName: res.device.name,
         orgId: res.device.orgId,
       });
+      track('device_paired', { orgId: res.device.orgId });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/');
     } catch (err) {

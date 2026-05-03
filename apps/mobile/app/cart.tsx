@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Money } from '../src/components/Money';
+import { track } from '../src/observability/funnel';
 import { useCart } from '../src/state/cart';
 import { parseTipInputCents } from '../src/state/tip-input';
 
@@ -67,6 +68,7 @@ export default function CartScreen() {
         onSubmit={(cents) => {
           setTip(cents);
           setTipModalOpen(false);
+          if (cents > 0) track('tip_added', { amountCents: cents });
         }}
       />
     </View>

@@ -24,7 +24,7 @@
  */
 import { nativeTheme } from '@counter/tokens/native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -38,6 +38,7 @@ import {
 import { Money } from '../../src/components/Money';
 import { database } from '../../src/db';
 import { useOrderDetail } from '../../src/hooks/useOrderDetail';
+import { track } from '../../src/observability/funnel';
 import { useAuth } from '../../src/state/auth';
 import { useDevice } from '../../src/state/device';
 import {
@@ -58,6 +59,13 @@ export default function RefundScreen() {
   const activeUser = useAuth((s) => s.activeUser);
 
   const [selection, setSelection] = useState<RefundSelection>({ qtyById: {} });
+
+  // Funnel signal: the cashier opened the refund flow for an order.
+  // Fires once per screen mount; opening the same order twice fires
+  // twice, which is the right resolution for funnel analysis.
+  useEffect(() => {
+    if (orderId) track('refund_started', { orderId });
+  }, [orderId]);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
