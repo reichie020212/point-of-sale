@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "5.7.5",
+    "@counter/printers": "workspace:*",
     "@counter/sync": "workspace:*",
     "@counter/tokens": "workspace:*",
     "@sentry/nextjs": "8.39.0",

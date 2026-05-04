@@ -11,7 +11,18 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import {
+  PrintReceiptOrderButton,
+  PrintRefundButton,
+} from '../../../../../components/PrintReceiptButtons';
 import { ApiError, api } from '../../../../../lib/api';
+
+import type {
+  ReceiptItem,
+  ReceiptOrder,
+  RefundReceipt,
+  RefundReceiptLine,
+} from '@counter/printers';
 
 interface OrderDetail {
   order: {
@@ -93,6 +104,26 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   const refundedCents = refunds.reduce((sum, r) => sum + r.amountCents, 0);
   const newestFirst = [...refunds].reverse();
 
+  // Reshape into the printer package's ReceiptOrder / RefundReceipt
+  // shapes once, server-side, so the client buttons just receive
+  // plain data and can fire the print without re-fetching.
+  const receiptOrder: ReceiptOrder = {
+    id: order.id,
+    createdAt: order.createdAt,
+    totalCents: order.totalCents,
+    subtotalCents: order.subtotalCents,
+    taxCents: order.taxCents,
+    tipCents: order.tipCents,
+    paymentMethod: order.paymentMethod,
+    storeName: 'Counter',
+    currency: 'PHP',
+  };
+  const receiptItems: ReceiptItem[] = items.map((it) => ({
+    nameSnapshot: it.nameSnapshot,
+    qty: it.qty,
+    unitPriceCents: it.unitPriceCents,
+  }));
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -109,11 +140,14 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               {fmtDate(order.createdAt)}
             </p>
           </div>
-          <span
-            className={`inline-block rounded-full border px-3 py-1 text-xs ${statusPill(order.status)}`}
-          >
-            {prettyStatus(order.status)}
-          </span>
+          <div className="flex items-center gap-3">
+            <span
+              className={`inline-block rounded-full border px-3 py-1 text-xs ${statusPill(order.status)}`}
+            >
+              {prettyStatus(order.status)}
+            </span>
+            <PrintReceiptOrderButton order={receiptOrder} items={receiptItems} />
+          </div>
         </div>
       </header>
 
@@ -165,37 +199,86 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             Refund history
           </div>
           <ol>
-            {newestFirst.map((r) => (
-              <li
-                key={r.id}
-                className="space-y-1 border-b border-line px-4 py-3 last:border-b-0"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono tabular text-xs text-ink-2">
-                    {fmtDate(r.createdAt)}
-                  </span>
-                  <span className="font-mono tabular text-sm text-bad">
-                    {fmtMoney(r.amountCents)}
-                  </span>
-                </div>
-                {(r.taxCents > 0 || r.tipCents > 0 || r.discountCents > 0) && (
-                  <div className="text-xs text-ink-3">
-                    Items {fmtMoney(r.subtotalCents)}
-                    {r.taxCents > 0 && <> · Tax {fmtMoney(r.taxCents)}</>}
-                    {r.tipCents > 0 && <> · Tip {fmtMoney(r.tipCents)}</>}
-                    {r.discountCents > 0 && <> · Discount −{fmtMoney(r.discountCents)}</>}
+            {newestFirst.map((r) => {
+              const refundReceipt: RefundReceipt = {
+                id: r.id,
+                orderId: order.id,
+                createdAt: r.createdAt,
+                amountCents: r.amountCents,
+                subtotalCents: r.subtotalCents,
+                taxCents: r.taxCents,
+                tipCents: r.tipCents,
+                discountCents: r.discountCents,
+                originalTotalCents: order.totalCents,
+                reason: r.reason,
+                storeName: 'Counter',
+                currency: 'PHP',
+              };
+              const refundLines: RefundReceiptLine[] = approximateRefundLines(
+                r.subtotalCents,
+                items,
+              );
+              return (
+                <li
+                  key={r.id}
+                  className="space-y-1 border-b border-line px-4 py-3 last:border-b-0"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono tabular text-xs text-ink-2">
+                      {fmtDate(r.createdAt)}
+                    </span>
+                    <span className="font-mono tabular text-sm text-bad">
+                      {fmtMoney(r.amountCents)}
+                    </span>
                   </div>
-                )}
-                {r.reason && (
-                  <div className="text-sm italic text-ink-2">“{r.reason}”</div>
-                )}
-              </li>
-            ))}
+                  {(r.taxCents > 0 || r.tipCents > 0 || r.discountCents > 0) && (
+                    <div className="text-xs text-ink-3">
+                      Items {fmtMoney(r.subtotalCents)}
+                      {r.taxCents > 0 && <> · Tax {fmtMoney(r.taxCents)}</>}
+                      {r.tipCents > 0 && <> · Tip {fmtMoney(r.tipCents)}</>}
+                      {r.discountCents > 0 && <> · Discount −{fmtMoney(r.discountCents)}</>}
+                    </div>
+                  )}
+                  {r.reason && (
+                    <div className="text-sm italic text-ink-2">“{r.reason}”</div>
+                  )}
+                  <div className="pt-1">
+                    <PrintRefundButton refund={refundReceipt} lines={refundLines} />
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </section>
       )}
     </div>
   );
+}
+
+/**
+ * Approximate which line items a refund covered. The API exposes the
+ * refund's subtotal but `line_qtys_json` isn't yet projected into the
+ * detail response; greedy-match the subtotal against the order's
+ * lines so the printed receipt has a plausible itemization. A future
+ * pass that surfaces line_qtys_json end-to-end can replace this with
+ * an exact match.
+ */
+function approximateRefundLines(
+  refundSubtotalCents: number,
+  items: OrderDetail['items'],
+): RefundReceiptLine[] {
+  const lines: RefundReceiptLine[] = [];
+  let remaining = refundSubtotalCents;
+  for (const item of items) {
+    if (remaining <= 0) break;
+    const unit = item.qty > 0 ? Math.round(item.subtotalCents / item.qty) : item.unitPriceCents;
+    if (unit <= 0) continue;
+    const fit = Math.min(item.qty, Math.floor(remaining / unit));
+    if (fit <= 0) continue;
+    lines.push({ nameSnapshot: item.nameSnapshot, qty: fit, unitPriceCents: unit });
+    remaining -= fit * unit;
+  }
+  return lines;
 }
 
 function Row({ label, value, negative }: { label: string; value: string; negative?: boolean }) {
