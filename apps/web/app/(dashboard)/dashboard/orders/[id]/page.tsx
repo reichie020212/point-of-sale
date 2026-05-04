@@ -52,6 +52,10 @@ interface OrderDetail {
     taxCents: number;
     tipCents: number;
     discountCents: number;
+    /** `{ [orderItemId]: qty }` for the units this refund covered.
+     *  Pre-v6 rows arrive as `{}` so the print path falls back to
+     *  the greedy-subtotal estimator. */
+    lineQtysJson: Record<string, number> | null;
     reason: string | null;
     processedById: string | null;
     createdAt: string;
@@ -214,10 +218,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 storeName: 'Counter',
                 currency: 'PHP',
               };
-              const refundLines: RefundReceiptLine[] = approximateRefundLines(
-                r.subtotalCents,
-                items,
-              );
+              const refundLines: RefundReceiptLine[] = buildRefundLines(r, items);
               return (
                 <li
                   key={r.id}
@@ -256,19 +257,31 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 }
 
 /**
- * Approximate which line items a refund covered. The API exposes the
- * refund's subtotal but `line_qtys_json` isn't yet projected into the
- * detail response; greedy-match the subtotal against the order's
- * lines so the printed receipt has a plausible itemization. A future
- * pass that surfaces line_qtys_json end-to-end can replace this with
- * an exact match.
+ * Build the printer's RefundReceiptLine[] from a refund row.
+ *
+ * Prefers the per-line `lineQtysJson` snapshot persisted at refund
+ * time (canonical "what was returned"). Pre-v6 refund rows arrive
+ * with no qtys map; for those we fall back to greedy-matching the
+ * refund's subtotal against the order's lines so the printed receipt
+ * still has a plausible itemization.
  */
-function approximateRefundLines(
-  refundSubtotalCents: number,
+function buildRefundLines(
+  refund: OrderDetail['refunds'][number],
   items: OrderDetail['items'],
 ): RefundReceiptLine[] {
   const lines: RefundReceiptLine[] = [];
-  let remaining = refundSubtotalCents;
+  const qtys = refund.lineQtysJson;
+  if (qtys && Object.keys(qtys).length > 0) {
+    for (const item of items) {
+      const qty = qtys[item.id] ?? 0;
+      if (qty <= 0) continue;
+      const unit = item.qty > 0 ? Math.round(item.subtotalCents / item.qty) : item.unitPriceCents;
+      lines.push({ nameSnapshot: item.nameSnapshot, qty, unitPriceCents: unit });
+    }
+    return lines;
+  }
+  // Legacy fallback — refund predates line_qtys_json column.
+  let remaining = refund.subtotalCents;
   for (const item of items) {
     if (remaining <= 0) break;
     const unit = item.qty > 0 ? Math.round(item.subtotalCents / item.qty) : item.unitPriceCents;

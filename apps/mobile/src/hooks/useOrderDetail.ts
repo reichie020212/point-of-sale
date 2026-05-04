@@ -56,6 +56,9 @@ export interface RefundEntry {
   discountCents: number;
   reason: string | null;
   processedById: string | null;
+  /** Per-line qtys this specific refund covered —
+   *  `{ [orderItemId]: qty }`. Empty for pre-v6 refund rows. */
+  lineQtys: Record<string, number>;
 }
 
 export interface OrderDetail {
@@ -167,6 +170,7 @@ export function useOrderDetail(orderServerId: string | undefined) {
                 discountCents: r.discountCents ?? 0,
                 reason: r.reason,
                 processedById: r.processedById,
+                lineQtys: parsed,
               });
             }
             // Stable oldest→newest ordering so the screen can decide

@@ -185,12 +185,14 @@ export default function OrderDetailScreen() {
 }
 
 /**
- * Build the (refund, lines) tuple printRefund expects. The line items
- * come from the order's qty-on-this-refund — the helper writes those
- * into refunds.line_qtys_json at submit time, but the local model
- * stores it as a JSON string, so we parse + intersect with order
- * items here. Falls back gracefully when line_qtys_json is missing
- * (legacy refund predating the per-line column).
+ * Build the (refund, lines) tuple printRefund expects.
+ *
+ * `entry.lineQtys` is the authoritative `{ [orderItemId]: qty }` snapshot
+ * persisted at refund time, so the printed itemization matches what the
+ * cashier actually selected. Pre-v6 refund rows (no line_qtys_json
+ * captured) have an empty map — we fall back to a greedy-subtotal match
+ * against the order items so legacy refunds still produce a plausible
+ * line list.
  */
 function buildRefundReceipt(
   detail: OrderDetail,
@@ -210,23 +212,26 @@ function buildRefundReceipt(
     storeName: 'Counter',
     currency: 'PHP',
   };
-  // For now, we don't ship line_qtys back from useOrderDetail to the
-  // refund history rows (they'd need their own field). Approximate by
-  // summing the breakdown subtotal across the order items — the
-  // printed receipt's headline is the *amount*, the line list is a
-  // helpful trail. If the list ends up empty (zero-priced refund) the
-  // printer still shows the breakdown + reason, which is enough for
-  // the customer.
   const lines: RefundReceiptLine[] = [];
-  let remaining = entry.subtotalCents;
-  for (const item of detail.items) {
-    if (remaining <= 0) break;
-    const unit = item.qty > 0 ? Math.round(item.subtotalCents / item.qty) : item.unitPriceCents;
-    if (unit <= 0) continue;
-    const fit = Math.min(item.qty, Math.floor(remaining / unit));
-    if (fit <= 0) continue;
-    lines.push({ nameSnapshot: item.nameSnapshot, qty: fit, unitPriceCents: unit });
-    remaining -= fit * unit;
+  if (Object.keys(entry.lineQtys).length > 0) {
+    for (const item of detail.items) {
+      const qty = entry.lineQtys[item.id] ?? 0;
+      if (qty <= 0) continue;
+      const unit = item.qty > 0 ? Math.round(item.subtotalCents / item.qty) : item.unitPriceCents;
+      lines.push({ nameSnapshot: item.nameSnapshot, qty, unitPriceCents: unit });
+    }
+  } else {
+    // Legacy refund predating line_qtys_json — best-effort itemization.
+    let remaining = entry.subtotalCents;
+    for (const item of detail.items) {
+      if (remaining <= 0) break;
+      const unit = item.qty > 0 ? Math.round(item.subtotalCents / item.qty) : item.unitPriceCents;
+      if (unit <= 0) continue;
+      const fit = Math.min(item.qty, Math.floor(remaining / unit));
+      if (fit <= 0) continue;
+      lines.push({ nameSnapshot: item.nameSnapshot, qty: fit, unitPriceCents: unit });
+      remaining -= fit * unit;
+    }
   }
   return [refund, lines];
 }
