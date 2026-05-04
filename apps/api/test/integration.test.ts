@@ -31,7 +31,16 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
-import { orders, organizations, products, users, customers, variants } from '@counter/schema';
+import {
+  orderItems,
+  orders,
+  organizations,
+  products,
+  refunds,
+  users,
+  customers,
+  variants,
+} from '@counter/schema';
 import { eq, sql } from 'drizzle-orm';
 
 import { initDb, getDb } from '../src/db.js';
@@ -309,7 +318,111 @@ test('integration suite', async (t) => {
     assert.equal(bad.statusCode, 400);
   });
 
+  await t.test('GET /api/v1/orders list + detail with refund history', async () => {
+    // Seed an order + item + a partial refund directly via Drizzle.
+    // The orders endpoints are read-only — mutations live on the sync
+    // push path which is exercised in sync-push.test.ts.
+    const variantId = randomUUID();
+    await db
+      .insert(variants)
+      .values({ id: variantId, orgId, productId, name: 'Single', priceCents: 350 });
+
+    const orderId = randomUUID();
+    await db.insert(orders).values({
+      id: orderId,
+      orgId,
+      clientOpId: `orders-test-${randomUUID()}`,
+      paymentMethod: 'cash',
+      status: 'partially_refunded',
+      subtotalCents: 1000,
+      taxCents: 120,
+      tipCents: 50,
+      discountCents: 0,
+      totalCents: 1170,
+    });
+    const itemId = randomUUID();
+    await db.insert(orderItems).values({
+      id: itemId,
+      orgId,
+      orderId,
+      variantId,
+      nameSnapshot: 'Single ×2',
+      qty: 2,
+      unitPriceCents: 500,
+      subtotalCents: 1000,
+    });
+    const refundId = randomUUID();
+    await db.insert(refunds).values({
+      id: refundId,
+      orgId,
+      orderId,
+      amountCents: 560,
+      subtotalCents: 500,
+      taxCents: 60,
+      tipCents: 0,
+      discountCents: 0,
+      lineQtysJson: { [itemId]: 1 },
+      reason: 'One drink wrong',
+    });
+
+    // List view exposes the cumulative refunded amount.
+    const list = await app.inject({
+      url: '/api/v1/orders',
+      headers: { authorization: `Bearer ${TEST_BEARER}` },
+    });
+    assert.equal(list.statusCode, 200);
+    const listed = list.json() as {
+      orders: Array<{ id: string; status: string; totalCents: number; refundedCents: number }>;
+    };
+    const ours = listed.orders.find((o) => o.id === orderId);
+    assert.ok(ours, 'seeded order present in list');
+    assert.equal(ours.status, 'partially_refunded');
+    assert.equal(ours.totalCents, 1170);
+    assert.equal(ours.refundedCents, 560);
+
+    // Status filter narrows the result set.
+    const filtered = await app.inject({
+      url: '/api/v1/orders?status=partially_refunded',
+      headers: { authorization: `Bearer ${TEST_BEARER}` },
+    });
+    assert.equal(filtered.statusCode, 200);
+    const filteredBody = filtered.json() as { orders: Array<{ status: string }> };
+    assert.ok(
+      filteredBody.orders.every((o) => o.status === 'partially_refunded'),
+      'status filter restricts to partially_refunded',
+    );
+
+    // Detail view returns items + refunds with the full breakdown.
+    const detail = await app.inject({
+      url: `/api/v1/orders/${orderId}`,
+      headers: { authorization: `Bearer ${TEST_BEARER}` },
+    });
+    assert.equal(detail.statusCode, 200);
+    const detailBody = detail.json() as {
+      order: { id: string; tipCents: number };
+      items: Array<{ id: string; qty: number }>;
+      refunds: Array<{ id: string; amountCents: number; tipCents: number; reason: string }>;
+    };
+    assert.equal(detailBody.order.id, orderId);
+    assert.equal(detailBody.order.tipCents, 50);
+    assert.equal(detailBody.items.length, 1);
+    assert.equal(detailBody.items[0]?.qty, 2);
+    assert.equal(detailBody.refunds.length, 1);
+    assert.equal(detailBody.refunds[0]?.amountCents, 560);
+    assert.equal(detailBody.refunds[0]?.tipCents, 0);
+    assert.equal(detailBody.refunds[0]?.reason, 'One drink wrong');
+
+    // Detail of a non-existent order returns 404, not 500.
+    const missing = await app.inject({
+      url: `/api/v1/orders/${randomUUID()}`,
+      headers: { authorization: `Bearer ${TEST_BEARER}` },
+    });
+    assert.equal(missing.statusCode, 404);
+  });
+
   // Cleanup so the test is idempotent.
+  await db.delete(refunds).where(eq(refunds.orgId, orgId));
+  await db.delete(orderItems).where(eq(orderItems.orgId, orgId));
   await db.delete(orders).where(eq(orders.orgId, orgId));
   await db.delete(variants).where(eq(variants.orgId, orgId));
   await db.delete(products).where(eq(products.orgId, orgId));

@@ -41,6 +41,7 @@ import { exportRoutes } from './routes/exports.js';
 import { healthRoutes } from './routes/health.js';
 import { importRoutes } from './routes/imports.js';
 import { loyaltyRoutes } from './routes/loyalty.js';
+import { orderRoutes } from './routes/orders.js';
 import { orgRoutes } from './routes/orgs.js';
 import { productRoutes } from './routes/products.js';
 import { reportRoutes } from './routes/reports.js';
@@ -118,6 +119,7 @@ export async function buildServer(opts: BuildServerOptions = {}) {
   await app.register(categoryRoutes);
   await app.register(productRoutes);
   await app.register(customerRoutes);
+  await app.register(orderRoutes);
   await app.register(deviceRoutes);
   await app.register(reportRoutes);
   await app.register(importRoutes);
