@@ -44,6 +44,20 @@ export interface PriorRefundsTotals {
   lineQtys: Record<string, number>;
 }
 
+/** A single refund row, surfaced for the order detail screen's history
+ *  list. Newest-first ordering is applied at render time. */
+export interface RefundEntry {
+  id: string;
+  createdAtMs: number;
+  amountCents: number;
+  subtotalCents: number;
+  taxCents: number;
+  tipCents: number;
+  discountCents: number;
+  reason: string | null;
+  processedById: string | null;
+}
+
 export interface OrderDetail {
   id: string;
   status: string;
@@ -64,6 +78,9 @@ export interface OrderDetail {
   /** Per-component breakdown sums across all prior refunds — feeds into
    *  computeRefundBreakdown's closing-out math. */
   priorRefunds: PriorRefundsTotals;
+  /** Individual refund records for this order, in insertion order
+   *  (oldest first). Render in reverse for newest-first UX. */
+  refunds: RefundEntry[];
 }
 
 export function useOrderDetail(orderServerId: string | undefined) {
@@ -129,6 +146,7 @@ export function useOrderDetail(orderServerId: string | undefined) {
               discountCents: 0,
               lineQtys,
             };
+            const list: RefundEntry[] = [];
             for (const r of refundRows) {
               refundsCachedTotals.amountCents += r.amountCents;
               refundsCachedTotals.subtotalCents += r.subtotalCents ?? 0;
@@ -139,7 +157,22 @@ export function useOrderDetail(orderServerId: string | undefined) {
               for (const [lineId, qty] of Object.entries(parsed)) {
                 lineQtys[lineId] = (lineQtys[lineId] ?? 0) + qty;
               }
+              list.push({
+                id: r.serverId,
+                createdAtMs: r.createdAtMs,
+                amountCents: r.amountCents,
+                subtotalCents: r.subtotalCents ?? 0,
+                taxCents: r.taxCents ?? 0,
+                tipCents: r.tipCents ?? 0,
+                discountCents: r.discountCents ?? 0,
+                reason: r.reason,
+                processedById: r.processedById,
+              });
             }
+            // Stable oldest→newest ordering so the screen can decide
+            // whether to reverse for newest-first UX.
+            list.sort((a, b) => a.createdAtMs - b.createdAtMs);
+            refundsList = list;
             updateDetail(order, lastItems, refundsCachedTotals);
           });
       });
@@ -153,6 +186,7 @@ export function useOrderDetail(orderServerId: string | undefined) {
       discountCents: 0,
       lineQtys: {},
     };
+    let refundsList: RefundEntry[] = [];
 
     function updateDetail(
       order: OrderModel,
@@ -183,6 +217,7 @@ export function useOrderDetail(orderServerId: string | undefined) {
         })),
         refundedCents: priorRefunds.amountCents,
         priorRefunds,
+        refunds: refundsList,
       });
       setLoading(false);
     }

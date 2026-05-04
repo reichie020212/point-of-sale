@@ -94,6 +94,49 @@ export default function OrderDetailScreen() {
         )}
       </View>
 
+      {detail.refunds.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Refund history</Text>
+          {/* Newest-first so the most recent action sits at the top —
+              the helper returns oldest-first to keep insertion order
+              stable, so we reverse here at render time. */}
+          {[...detail.refunds].reverse().map((r) => (
+            <View key={r.id} style={styles.refundEntry}>
+              <View style={styles.refundEntryHead}>
+                <Text style={styles.refundEntryDate}>
+                  {new Date(r.createdAtMs).toLocaleString()}
+                </Text>
+                <Money cents={r.amountCents} style={styles.refundEntryAmount} />
+              </View>
+              {(r.taxCents > 0 || r.tipCents > 0 || r.discountCents > 0) && (
+                <Text style={styles.refundEntryBreakdown}>
+                  Items <Money cents={r.subtotalCents} />
+                  {r.taxCents > 0 && (
+                    <>
+                      {' · Tax '}
+                      <Money cents={r.taxCents} />
+                    </>
+                  )}
+                  {r.tipCents > 0 && (
+                    <>
+                      {' · Tip '}
+                      <Money cents={r.tipCents} />
+                    </>
+                  )}
+                  {r.discountCents > 0 && (
+                    <>
+                      {' · Discount −'}
+                      <Money cents={r.discountCents} />
+                    </>
+                  )}
+                </Text>
+              )}
+              {r.reason && <Text style={styles.refundEntryReason}>“{r.reason}”</Text>}
+            </View>
+          ))}
+        </View>
+      )}
+
       {detail.customerId && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Loyalty</Text>
@@ -201,6 +244,25 @@ const styles = StyleSheet.create({
   refundedRow: { flexDirection: 'row', justifyContent: 'space-between' },
   refundedLabel: { color: nativeTheme.colors.bad, fontSize: 14 },
   refundedValue: { color: nativeTheme.colors.bad, fontSize: 14 },
+  refundEntry: {
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: nativeTheme.colors.line,
+    gap: 4,
+  },
+  refundEntryHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  refundEntryDate: {
+    color: nativeTheme.colors.ink2,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'] as ['tabular-nums'],
+  },
+  refundEntryAmount: { fontSize: 14, color: nativeTheme.colors.bad },
+  refundEntryBreakdown: { color: nativeTheme.colors.ink3, fontSize: 11 },
+  refundEntryReason: { color: nativeTheme.colors.ink2, fontSize: 12, fontStyle: 'italic' as const },
   refundBtn: {
     backgroundColor: nativeTheme.colors.ink,
     padding: 16,
