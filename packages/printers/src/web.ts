@@ -5,19 +5,32 @@
  * and triggers `window.print()`. Works in any modern browser; useful
  * for the web dashboard's per-order receipt preview.
  */
-import { formatReceiptHtml } from './format';
+import { formatReceiptHtml, formatRefundReceiptHtml } from './format';
 
-import type { ReceiptItem, ReceiptOrder, ReceiptPrinter } from './types';
+import type {
+  ReceiptItem,
+  ReceiptOrder,
+  ReceiptPrinter,
+  RefundReceipt,
+  RefundReceiptLine,
+} from './types';
 
 export class WebPrinter implements ReceiptPrinter {
   readonly type = 'web' as const;
   readonly label = 'Browser print dialog';
 
   async print(order: ReceiptOrder, items: ReceiptItem[]): Promise<void> {
+    return this.printHtml(formatReceiptHtml(order, items));
+  }
+
+  async printRefund(refund: RefundReceipt, lines: RefundReceiptLine[]): Promise<void> {
+    return this.printHtml(formatRefundReceiptHtml(refund, lines));
+  }
+
+  private async printHtml(html: string): Promise<void> {
     if (typeof window === 'undefined') {
       throw new Error('WebPrinter can only run in a browser');
     }
-    const html = formatReceiptHtml(order, items);
     const frame = document.createElement('iframe');
     frame.style.position = 'fixed';
     frame.style.right = '0';

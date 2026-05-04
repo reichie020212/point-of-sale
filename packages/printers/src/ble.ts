@@ -9,7 +9,13 @@
  * All three land in W5 field work. The scaffold here lets mobile code
  * call `new BLEThermalPrinter(deviceId)` today.
  */
-import type { ReceiptItem, ReceiptOrder, ReceiptPrinter } from './types';
+import type {
+  ReceiptItem,
+  ReceiptOrder,
+  ReceiptPrinter,
+  RefundReceipt,
+  RefundReceiptLine,
+} from './types';
 
 export interface BLEThermalPrinterOptions {
   /** Paired peripheral id from BleManager.connectedDevices(). */
@@ -27,6 +33,10 @@ export class BLEThermalPrinter implements ReceiptPrinter {
   }
 
   async print(_order: ReceiptOrder, _items: ReceiptItem[]): Promise<void> {
+    throw new Error('BLEThermalPrinter not implemented yet — needs hardware');
+  }
+
+  async printRefund(_refund: RefundReceipt, _lines: RefundReceiptLine[]): Promise<void> {
     throw new Error('BLEThermalPrinter not implemented yet — needs hardware');
   }
 }

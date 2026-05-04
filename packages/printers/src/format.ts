@@ -10,7 +10,12 @@
  * receipt design lands once we confirm the legal copy each region
  * requires (TODO(policy-region)).
  */
-import type { ReceiptItem, ReceiptOrder } from './types';
+import type {
+  ReceiptItem,
+  ReceiptOrder,
+  RefundReceipt,
+  RefundReceiptLine,
+} from './types';
 
 export function formatReceiptText(order: ReceiptOrder, items: ReceiptItem[]): string {
   const fmt = new Intl.NumberFormat('en-US', {
@@ -49,6 +54,68 @@ export function formatReceiptText(order: ReceiptOrder, items: ReceiptItem[]): st
 
 export function formatReceiptHtml(order: ReceiptOrder, items: ReceiptItem[]): string {
   const text = formatReceiptText(order, items);
+  return `<pre style="font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: pre; line-height: 1.5;">${escapeHtml(text)}</pre>`;
+}
+
+/**
+ * Format a refund counter-entry as plain text. Mirrors the sale layout
+ * so a thermal-printed refund receipt sits next to its original sale
+ * receipt as a recognizable pair.
+ */
+export function formatRefundReceiptText(
+  refund: RefundReceipt,
+  lines: RefundReceiptLine[],
+): string {
+  const fmt = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: refund.currency ?? 'PHP',
+  });
+  const out: string[] = [];
+  out.push(refund.storeName ?? 'Counter');
+  out.push('');
+  out.push('REFUND');
+  out.push(`Refund ${refund.id.slice(0, 8)}`);
+  out.push(`Order ${refund.orderId.slice(0, 8)}`);
+  out.push(new Date(refund.createdAt).toLocaleString('en-US'));
+  out.push('--------------------------------');
+  for (const line of lines) {
+    out.push(
+      pad(`${line.qty}× ${line.nameSnapshot}`, 24) +
+        pad(fmt.format((line.qty * line.unitPriceCents) / 100), 8, 'right'),
+    );
+  }
+  out.push('--------------------------------');
+  out.push(pad('Items', 24) + pad(fmt.format(refund.subtotalCents / 100), 8, 'right'));
+  if (refund.discountCents > 0) {
+    // Discount is "un-applied" by the refund — it reduces the cash
+    // returned, so render it as a negative line for parity with the
+    // sale receipt's discount handling.
+    out.push(
+      pad('Discount reversed', 24) +
+        pad('-' + fmt.format(refund.discountCents / 100), 8, 'right'),
+    );
+  }
+  if (refund.taxCents > 0) {
+    out.push(pad('Tax', 24) + pad(fmt.format(refund.taxCents / 100), 8, 'right'));
+  }
+  if (refund.tipCents > 0) {
+    out.push(pad('Tip', 24) + pad(fmt.format(refund.tipCents / 100), 8, 'right'));
+  }
+  out.push(pad('Refund total', 24) + pad(fmt.format(refund.amountCents / 100), 8, 'right'));
+  out.push(`of ${fmt.format(refund.originalTotalCents / 100)} original`);
+  out.push('--------------------------------');
+  if (refund.reason) out.push(`Reason: ${refund.reason}`);
+  if (refund.cashierName) out.push(`Cashier: ${refund.cashierName}`);
+  out.push('');
+  out.push('Sorry for the trouble.');
+  return out.join('\n');
+}
+
+export function formatRefundReceiptHtml(
+  refund: RefundReceipt,
+  lines: RefundReceiptLine[],
+): string {
+  const text = formatRefundReceiptText(refund, lines);
   return `<pre style="font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: pre; line-height: 1.5;">${escapeHtml(text)}</pre>`;
 }
 

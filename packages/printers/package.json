@@ -17,14 +17,17 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "lint": "eslint src",
+    "lint": "eslint src test",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts",
     "clean": "rm -rf dist .turbo"
   },
   "devDependencies": {
     "@counter/eslint-config": "workspace:*",
     "@counter/tsconfig": "workspace:*",
+    "@types/node": "20.12.7",
     "eslint": "8.57.0",
+    "tsx": "4.19.2",
     "typescript": "5.4.5"
   }
 }

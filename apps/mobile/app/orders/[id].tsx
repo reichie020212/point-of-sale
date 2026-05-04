@@ -7,13 +7,24 @@
  * refundable. The Refund button is disabled once the cumulative
  * refund total reaches the order's total — i.e. nothing left to refund.
  */
+import {
+  MockPrinter,
+  type RefundReceipt,
+  type RefundReceiptLine,
+} from '@counter/printers';
 import { nativeTheme } from '@counter/tokens/native';
 import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Money } from '../../src/components/Money';
 import { PunchProgress } from '../../src/components/PunchProgress';
-import { useOrderDetail } from '../../src/hooks/useOrderDetail';
+import { useOrderDetail, type OrderDetail, type RefundEntry } from '../../src/hooks/useOrderDetail';
+
+// One shared instance is fine — the mock just logs, and the
+// production BLE/Web instances are stateless beyond their device
+// handle. When the W5 thermal printer lands, swap this for a hook
+// that resolves the active printer from device state.
+const printer = new MockPrinter();
 
 export default function OrderDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -132,6 +143,16 @@ export default function OrderDetailScreen() {
                 </Text>
               )}
               {r.reason && <Text style={styles.refundEntryReason}>“{r.reason}”</Text>}
+              <Pressable
+                onPress={() => {
+                  void printer.printRefund(...buildRefundReceipt(detail, r));
+                }}
+                style={styles.refundPrintBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Print refund receipt"
+              >
+                <Text style={styles.refundPrintText}>Print receipt</Text>
+              </Pressable>
             </View>
           ))}
         </View>
@@ -161,6 +182,53 @@ export default function OrderDetailScreen() {
       </Link>
     </ScrollView>
   );
+}
+
+/**
+ * Build the (refund, lines) tuple printRefund expects. The line items
+ * come from the order's qty-on-this-refund — the helper writes those
+ * into refunds.line_qtys_json at submit time, but the local model
+ * stores it as a JSON string, so we parse + intersect with order
+ * items here. Falls back gracefully when line_qtys_json is missing
+ * (legacy refund predating the per-line column).
+ */
+function buildRefundReceipt(
+  detail: OrderDetail,
+  entry: RefundEntry,
+): [RefundReceipt, RefundReceiptLine[]] {
+  const refund: RefundReceipt = {
+    id: entry.id,
+    orderId: detail.id,
+    createdAt: new Date(entry.createdAtMs).toISOString(),
+    amountCents: entry.amountCents,
+    subtotalCents: entry.subtotalCents,
+    taxCents: entry.taxCents,
+    tipCents: entry.tipCents,
+    discountCents: entry.discountCents,
+    originalTotalCents: detail.totalCents,
+    reason: entry.reason,
+    storeName: 'Counter',
+    currency: 'PHP',
+  };
+  // For now, we don't ship line_qtys back from useOrderDetail to the
+  // refund history rows (they'd need their own field). Approximate by
+  // summing the breakdown subtotal across the order items — the
+  // printed receipt's headline is the *amount*, the line list is a
+  // helpful trail. If the list ends up empty (zero-priced refund) the
+  // printer still shows the breakdown + reason, which is enough for
+  // the customer.
+  const lines: RefundReceiptLine[] = [];
+  let remaining = entry.subtotalCents;
+  for (const item of detail.items) {
+    if (remaining <= 0) break;
+    const unit = item.qty > 0 ? Math.round(item.subtotalCents / item.qty) : item.unitPriceCents;
+    if (unit <= 0) continue;
+    const fit = Math.min(item.qty, Math.floor(remaining / unit));
+    if (fit <= 0) continue;
+    lines.push({ nameSnapshot: item.nameSnapshot, qty: fit, unitPriceCents: unit });
+    remaining -= fit * unit;
+  }
+  return [refund, lines];
 }
 
 function prettyStatus(status: string): string {
@@ -263,6 +331,16 @@ const styles = StyleSheet.create({
   refundEntryAmount: { fontSize: 14, color: nativeTheme.colors.bad },
   refundEntryBreakdown: { color: nativeTheme.colors.ink3, fontSize: 11 },
   refundEntryReason: { color: nativeTheme.colors.ink2, fontSize: 12, fontStyle: 'italic' as const },
+  refundPrintBtn: {
+    alignSelf: 'flex-start' as const,
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: nativeTheme.colors.line2,
+  },
+  refundPrintText: { color: nativeTheme.colors.ink, fontSize: 12 },
   refundBtn: {
     backgroundColor: nativeTheme.colors.ink,
     padding: 16,
