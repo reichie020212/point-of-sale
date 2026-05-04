@@ -52,30 +52,31 @@ These constrain Claude's execution; relevant when you design a Blueprint:
 | Sync    | Custom WebSocket primary + HTTPS long-poll fallback, Lamport-clock versioning, delta-CRDT for inventory                       |
 | Tooling | pnpm 9 workspaces + Turborepo                                                                                                 |
 
-Planned layout:
+Current layout:
 
 ```
-apps/{mobile,web,api}
-packages/{tokens,ui-web,ui-mobile,sync,schema,utils}
-tooling/
+apps/{api,mobile,web}
+packages/{eslint-config,payments,prettier-config,printers,schema,sync,tokens,tsconfig,ui-mobile}
+tooling/{eslint,eslint-fixtures,prettier,tsconfig}
+docs/{blueprints,manual-test-plan.md,RESUME.md}
 ```
 
-Build order in HANDOFF §7 — eight weekly milestones, starting with monorepo scaffold + tokens + auth.
+HANDOFF §7's eight-week build order is **complete** through W8. The work since then has been refining the sales-integrity arc — tax-aware checkout, tipping, refund flow, observability hardening, billing Phase A — landed as named blueprints under `docs/blueprints/`.
 
 ---
 
-## Open questions you must respect (HANDOFF §9)
+## HANDOFF §9 closed decisions (2026-05-03)
 
-Do not bake assumptions into a Blueprint for these without user confirmation:
+All six open questions are now answered. **Implement these without re-asking.** If a Blueprint needs a variation on any of them, flag the conflict explicitly so the user can confirm.
 
-- Tipping (percent / fixed / none, per region)
-- Tax engine (flat / multi-rate / TaxJar / Avalara)
-- Refund rules (full/partial, time window, reason required)
-- Loyalty (punchcard / points / spend-based)
-- Team RBAC matrix
-- Region/currency matrix at launch
+- **Region & currency**: PH only. `organizations.region = 'PH'`, `currency = 'PHP'` (₱, en-PH). No FX accounting, no currency picker in onboarding.
+- **Tipping**: Fixed-amount entry only. `orders.tip_cents` exists; cart screen shows a single "Add tip" → numeric input. Receipts render the tip line only when > 0.
+- **Tax engine**: Single flat rate per org. `organizations.tax_rate` is `numeric(5,3)`, default `12.000` for PH VAT. Subtotal × rate computed locally on the device. No third-party SDK; future-proof by leaving room for a tax-class schema migration but ship v1 without it.
+- **Refund rules**: Full or partial, no time limit, free-text reason required. Refunds are new rows; orders are append-only. **Tip is all-or-nothing** (released only on the closing-out refund). **Tax + discount pro-rate by subtotal share with floor() rounding**; the closing-out refund captures the remainder so cumulative refunds match the order line-for-line. Per-line qty tracking via `refunds.line_qtys_json` prevents over-refund across multiple partials.
+- **Loyalty model**: Punchcard (Nth purchase free). Per-product (or per-category) punch counter on the customer record; cashier taps "redeem" when threshold hits.
+- **Team RBAC**: 3 roles — owner / manager / cashier. `users.role` enum, default `cashier`. Owner = everything; manager = everything except billing + team management; cashier = sell + refund only.
 
-If a Blueprint touches one of these, leave it as a `TODO(open-question)` placeholder and call it out at the top of the Blueprint.
+If a future Blueprint introduces a region beyond PH, an annual billing cycle, or a multi-rate tax model, those are no longer "open questions" — they are scope changes. Surface them at the top of the Blueprint and confirm with the user before proceeding.
 
 ---
 
@@ -85,3 +86,15 @@ If a Blueprint touches one of these, leave it as a `TODO(open-question)` placeho
 - Keep Blueprints in chat. They get committed into a `docs/blueprints/` folder when accepted by the user.
 - If Claude reports a roadblock, diagnose root cause and amend the Blueprint — don't wave it off.
 - Update this file when the Architect's standing brief changes (new constraints, locked decisions on §9 items, completed milestones).
+
+---
+
+## Named gaps for the next Blueprint cycle
+
+The user audit (2026-05-05) flagged these as the real launch blockers Claude can ship without hardware. Pick from this list when the user names a priority — do not start unprompted:
+
+1. **Stripe billing Phase B** — in-product subscription cancel + downgrade. Phase A's portal-redirect works; in-product cancel does not. HANDOFF §3 spec: monthly + annual (annual = 2 months free), 14-day Pro trial without card, downgrade Pro → Free freezes cloud sync but keeps local data intact. Open product decisions: how the cancel UX surfaces on mobile (cashier vs owner), whether the freeze is hard or soft, what the dunning flow looks like on a failed renewal.
+2. **Account-deletion flow** — HANDOFF §8 commits to "Account delete wipes within 30 days" but no schema column / endpoint / UI exists. Smallest sufficient design: a nullable `organizations.deletion_requested_at` timestamp, owner-only POST/DELETE endpoints, a maintenance-worker tick that wipes orgs past the 30-day window, and a Settings "Danger zone" with confirm/cancel. Tenant cascade-delete is already wired (FK `onDelete: 'cascade'`); user.activeOrgId is `set null`, so the user row survives the wipe.
+3. **Refund analytics** — additive polish on `apps/api/src/routes/reports.ts`. The breakdown columns (subtotal/tax/tip/discount on `refunds`) make per-component aggregates trivial; surface "tip released this period", "tax returned", "refunds by reason" in the dashboard.
+
+W5 hardware items (BLE thermal printer, Stripe Terminal SDK, real device-token flow) are scaffolded but blocked on physical devices — those are not Blueprint work, they are hardware procurement.

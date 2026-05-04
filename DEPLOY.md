@@ -8,7 +8,19 @@ Local development setup and production deployment guide.
 
 ## Status
 
-This guide is **forward-looking**. The repo currently contains design references only; the monorepo (`apps/`, `packages/`) is being scaffolded. Sections marked **(planned)** describe how the system will be deployed once it exists.
+The monorepo is fully scaffolded: `apps/{api,web,mobile}` and
+`packages/{schema,sync,tokens,ui-mobile,printers,payments,...}` all
+exist and pass lint + typecheck + tests in CI. The W2–W8 master push
+landed (auth, products, sync, cart, payment, receipts, dashboard,
+reports, customers, loyalty, registers, import/export, billing
+Phase A, observability A+B); the refund flow lands the breakdown +
+per-line tracking + history + receipts arc on top of that.
+
+The "Production deployment" section below describes the target
+topology (Fly + Vercel + Neon + Upstash + R2 + EAS). The
+[Pre-flight checklist](#4--pre-flight-checklist-before-first-production-deploy)
+in §4 lists the ops items that still need to be provisioned for first
+launch — none of those are code work.
 
 ---
 
@@ -37,10 +49,10 @@ psql --version    # 16.x
 redis-cli ping    # PONG
 ```
 
-### 1.2 First-time setup (planned)
+### 1.2 First-time setup
 
 ```bash
-git clone <repo-url> counter
+git clone https://github.com/reichie020212/point-of-sale counter
 cd counter
 pnpm install                      # installs all workspace packages
 
@@ -49,31 +61,55 @@ brew services start postgresql@16 # macOS — adjust for your OS
 brew services start redis
 
 # DB bootstrap
-pnpm db:create                    # createdb counter_dev
-pnpm db:migrate                   # runs migrations in apps/api
-pnpm db:seed                      # seeds dev fixtures
+createdb counter_dev
+DATABASE_URL=postgresql://localhost:5432/counter_dev \
+  pnpm --filter @counter/schema db:migrate
 
 # Environment
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-cp apps/mobile/.env.example apps/mobile/.env
-# Fill in: DATABASE_URL, REDIS_URL, JWT_SECRET, S3 creds (MinIO local), Stripe test keys
+# Mobile reads its API URL from app.json's `extra.apiUrl`; defaults to
+# http://localhost:4000 when unset, which is right for an emulator
+# pointing at the dev API. No mobile .env needed for local dev.
 ```
 
-### 1.3 Run the dev loop (planned)
+Fill in `apps/api/.env` and `apps/web/.env` with at minimum:
 
-Single command brings up the API, the web app, and the Expo dev server in parallel via Turborepo:
+| Var                                          | Where | Source                                            |
+| -------------------------------------------- | ----- | ------------------------------------------------- |
+| `DATABASE_URL`                               | api   | Local: `postgresql://localhost:5432/counter_dev`  |
+| `CLERK_SECRET_KEY` / `CLERK_PUBLISHABLE_KEY` | both  | Clerk dashboard → API Keys (use a `dev` instance) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`          | web   | Same as above; bundled into client JS             |
+| `NEXT_PUBLIC_API_URL`                        | web   | `http://localhost:4000`                           |
+| `CORS_ORIGINS`                               | api   | `http://localhost:3000`                           |
+
+Stripe and S3/MinIO env vars are optional in dev — the API tolerates
+missing Stripe keys (billing endpoints return 503) and the dev loop
+doesn't need uploads to function. See §1.4 for MinIO if you want to
+exercise file uploads, and §2.10 for the Stripe test-mode setup.
+
+### 1.3 Run the dev loop
+
+`pnpm dev` from the repo root runs `turbo run dev --parallel` and
+brings up every workspace's `dev` script in one terminal. Most
+contributors run the API + web together and start mobile in a
+separate terminal so the Expo prompts don't fight with API logs.
 
 ```bash
-pnpm dev
+# Terminal 1 — api on :4000, web on :3000
+pnpm --filter @counter/api dev
+pnpm --filter @counter/web dev    # in another terminal, or use `pnpm dev` to do both
+
+# Terminal 2 — Expo dev server
+pnpm --filter @counter/mobile start
+# Press `i` (iOS Simulator), `a` (Android emulator), or scan the QR
+# code with Expo Go on a physical device.
 ```
 
-Or individually:
+If you really want everything at once:
 
 ```bash
-pnpm --filter api dev             # http://localhost:4000
-pnpm --filter web dev             # http://localhost:3000
-pnpm --filter mobile dev          # Expo dev server; press i / a to launch sim
+pnpm dev   # api + web + mobile (Expo) in parallel under turbo
 ```
 
 Default ports:
@@ -112,25 +148,96 @@ S3_FORCE_PATH_STYLE=true
 ### 1.5 Common dev tasks
 
 ```bash
-pnpm lint                         # ESLint across all workspaces
-pnpm format                       # Prettier write
-pnpm typecheck                    # tsc --noEmit, every workspace
-pnpm test                         # Vitest / Jest, per workspace
-pnpm --filter api db:migrate      # run new migrations
-pnpm --filter api db:reset        # drop + recreate + seed (dev only)
+pnpm lint                                  # ESLint across all workspaces
+pnpm lint:fix                              # auto-fix lint where possible
+pnpm format                                # Prettier write
+pnpm typecheck                             # tsc --noEmit, every workspace
+pnpm test                                  # node:test + tsx, per workspace
+
+# Schema migrations (Drizzle)
+pnpm --filter @counter/schema db:generate  # diff src/*.ts → new migration SQL
+pnpm --filter @counter/schema db:migrate   # apply pending migrations
+pnpm --filter @counter/schema db:studio    # open Drizzle Studio
+
+# Reset the local DB (drops + recreates `counter_dev`)
+dropdb counter_dev && createdb counter_dev
+DATABASE_URL=postgresql://localhost:5432/counter_dev \
+  pnpm --filter @counter/schema db:migrate
 ```
+
+The DB-backed integration tests (`apps/api/test/integration.test.ts`,
+`apps/api/test/sync-push.test.ts`) auto-skip when `DATABASE_URL` isn't
+reachable. To run them locally, set `DATABASE_URL=postgresql://…/counter_test`
+on a database with the migrations applied — CI brings up a fresh
+Postgres service container and runs them on every push.
 
 ### 1.6 Mobile development specifics
 
 ```bash
-cd apps/mobile
-pnpm dev                          # starts Metro
-# In another terminal:
-pnpm ios                          # builds + launches in iOS sim (macOS only)
-pnpm android                      # builds + launches in Android emulator
+pnpm --filter @counter/mobile start       # Metro on :8081, Expo Dev Tools
+pnpm --filter @counter/mobile ios         # build + launch iOS sim (macOS only)
+pnpm --filter @counter/mobile android     # build + launch Android emulator
 ```
 
-For physical devices, install **Expo Go** during early development. Once native modules land (BLE printer, barcode scanner, payments), use a custom dev client built with `eas build --profile development`.
+**Pointing mobile at the API.** The mobile app reads
+`Constants.expoConfig.extra.apiUrl` and falls back to
+`http://localhost:4000`. The default is right for an iOS simulator on
+the same machine as the API. For an Android emulator, the loopback
+address is `10.0.2.2`; for a physical device, use your machine's LAN
+IP (or an `ngrok` tunnel) and set `extra.apiUrl` in `app.json`:
+
+```json
+{
+  "expo": {
+    "extra": {
+      "apiUrl": "http://192.168.1.42:4000"
+    }
+  }
+}
+```
+
+**Expo Go vs custom dev client.** Most of the screens (catalog, cart,
+checkout, refund flow, orders) work in **Expo Go**. Native modules
+(BLE thermal printer in `packages/printers/src/ble.ts`, the planned
+Stripe Terminal SDK in `packages/payments/src/stripe.ts`) are
+scaffolded but not wired up — they'll need a custom dev client
+(`eas build --profile development`) once hardware ships.
+
+**Data isolation.** Each Expo Go install gets its own WatermelonDB
+file in the app sandbox. To start fresh, uninstall + reinstall, or
+shake the device and tap "Clear async storage" in the dev menu.
+
+### 1.7 Tester workflow
+
+The [`docs/manual-test-plan.md`](./docs/manual-test-plan.md) document
+is the canonical script for human-driven QA — it walks the W3
+acceptance gate (offline mobile sale → reconnect → web-visible) plus
+hardware-dependent flows.
+
+A few utilities testers reach for that don't live in the test plan:
+
+```bash
+# Bump an org from free → pro so the dashboard isn't redirected to /pricing
+psql counter_dev -c "update organizations set tier = 'pro' where slug = '<your-slug>';"
+
+# Inspect the most recent refunds (handy when verifying the breakdown columns)
+psql counter_dev -c "select id, amount_cents, subtotal_cents, tax_cents, tip_cents, line_qtys_json, reason
+                     from refunds order by created_at desc limit 5;"
+
+# Tail API logs while reproducing a flow
+pnpm --filter @counter/api dev | tee /tmp/counter-api.log
+```
+
+Surfaces and how to verify them:
+
+| Surface        | URL / launch                               | Ports |
+| -------------- | ------------------------------------------ | ----- |
+| Web dashboard  | `http://localhost:3000/dashboard`          | 3000  |
+| Marketing site | `http://localhost:3000`                    | 3000  |
+| API health     | `http://localhost:4000/healthz`            | 4000  |
+| API readiness  | `http://localhost:4000/readyz` (DB+broker) | 4000  |
+| Sync WebSocket | `ws://localhost:4000/sync`                 | 4000  |
+| Mobile         | Expo Go QR / iOS sim / Android emulator    | 8081  |
 
 ---
 
@@ -274,11 +381,11 @@ eas build --platform ios --profile production           # TestFlight + App Store
 
 ### 2.9 Observability
 
-| Concern           | Tool                                                                    |
-| ----------------- | ----------------------------------------------------------------------- |
-| Error tracking    | Sentry (api + web + mobile, JS-level on mobile until EAS build pipeline) |
-| Product analytics | PostHog (web + mobile, opt-out toggle in /dashboard/settings)            |
-| Logs              | Fly logs → Logtail / Axiom (long-term retention)                        |
+| Concern           | Tool                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| Error tracking    | Sentry (api + web + mobile, JS-level on mobile until EAS build pipeline)           |
+| Product analytics | PostHog (web + mobile, opt-out toggle in /dashboard/settings)                      |
+| Logs              | Fly logs → Logtail / Axiom (long-term retention)                                   |
 | Uptime            | Better Uptime / Cronitor probing `/healthz` (liveness) and `/readyz` (DB + broker) |
 
 #### Sentry env vars (per surface)
@@ -287,15 +394,15 @@ All optional in dev/test — without a DSN the SDK is a no-op so `pnpm
 dev` and CI run untouched. Production sets one DSN per surface so
 events route to separate Sentry projects.
 
-| Var                          | Surface       | Purpose                                                  |
-| ---------------------------- | ------------- | -------------------------------------------------------- |
-| `SENTRY_DSN`                 | API + Web SSR | Server runtime DSN                                       |
-| `NEXT_PUBLIC_SENTRY_DSN`     | Web client    | Browser DSN (bundled into client JS)                     |
-| `SENTRY_RELEASE`             | All           | Git sha; CI sets from `$GITHUB_SHA`                      |
-| `SENTRY_ENVIRONMENT`         | All           | `production` / `staging` / `preview`                     |
-| `SENTRY_TRACES_SAMPLE_RATE`  | API           | 0..1; defaults 1.0 for the beta                          |
-| `SENTRY_AUTH_TOKEN`          | Build-time    | Web source-map upload                                    |
-| `SENTRY_ORG` + `SENTRY_PROJECT` | Build-time | Web source-map upload routing                            |
+| Var                             | Surface       | Purpose                              |
+| ------------------------------- | ------------- | ------------------------------------ |
+| `SENTRY_DSN`                    | API + Web SSR | Server runtime DSN                   |
+| `NEXT_PUBLIC_SENTRY_DSN`        | Web client    | Browser DSN (bundled into client JS) |
+| `SENTRY_RELEASE`                | All           | Git sha; CI sets from `$GITHUB_SHA`  |
+| `SENTRY_ENVIRONMENT`            | All           | `production` / `staging` / `preview` |
+| `SENTRY_TRACES_SAMPLE_RATE`     | API           | 0..1; defaults 1.0 for the beta      |
+| `SENTRY_AUTH_TOKEN`             | Build-time    | Web source-map upload                |
+| `SENTRY_ORG` + `SENTRY_PROJECT` | Build-time    | Web source-map upload routing        |
 
 PII scrubbing is hard-wired at SDK init: `pin_hash`, `device_token`,
 `stripe_customer_id`, `authorization` / `cookie` headers, customer
@@ -305,14 +412,14 @@ redacted from every event before transport. See
 
 #### PostHog env vars
 
-| Var                            | Where         | Purpose                                       |
-| ------------------------------ | ------------- | --------------------------------------------- |
-| `NEXT_PUBLIC_POSTHOG_KEY`      | Web client    | Project API key                               |
-| `NEXT_PUBLIC_POSTHOG_HOST`     | Web client    | Defaults to `https://us.i.posthog.com`        |
-| `EXPO_PUBLIC_POSTHOG_KEY`      | Mobile        | Project API key (Babel-inlined at build time) |
-| `EXPO_PUBLIC_POSTHOG_HOST`     | Mobile        | Defaults to `https://us.i.posthog.com`        |
-| `EXPO_PUBLIC_SENTRY_DSN`       | Mobile        | Mobile-specific Sentry DSN                    |
-| `EXPO_PUBLIC_SENTRY_ENVIRONMENT` | Mobile      | `production` / `staging`                      |
+| Var                              | Where      | Purpose                                       |
+| -------------------------------- | ---------- | --------------------------------------------- |
+| `NEXT_PUBLIC_POSTHOG_KEY`        | Web client | Project API key                               |
+| `NEXT_PUBLIC_POSTHOG_HOST`       | Web client | Defaults to `https://us.i.posthog.com`        |
+| `EXPO_PUBLIC_POSTHOG_KEY`        | Mobile     | Project API key (Babel-inlined at build time) |
+| `EXPO_PUBLIC_POSTHOG_HOST`       | Mobile     | Defaults to `https://us.i.posthog.com`        |
+| `EXPO_PUBLIC_SENTRY_DSN`         | Mobile     | Mobile-specific Sentry DSN                    |
+| `EXPO_PUBLIC_SENTRY_ENVIRONMENT` | Mobile     | `production` / `staging`                      |
 
 Web identifies on Clerk sign-in by Clerk `userId` (no email pushed).
 Mobile identifies on device pairing by `deviceId` because mobile has
@@ -347,7 +454,7 @@ flips `organizations.tier`.
    `customer.subscription.updated`, `customer.subscription.deleted`,
    `invoice.payment_failed`. Copy the signing secret into Fly secrets
    as `STRIPE_WEBHOOK_SECRET`. (Local dev: run `stripe listen
-   --forward-to localhost:4000/api/v1/billing/webhook` and use the
+--forward-to localhost:4000/api/v1/billing/webhook` and use the
    `whsec_…` value it prints.)
 3. **Customer Portal**: enable in the Stripe dashboard
    (Billing → Customer Portal). Configure allowed actions (cancel,
@@ -370,11 +477,14 @@ flips `organizations.tier`.
 | `preview`    | Fly preview app  | Vercel preview | Neon dev branch   | Upstash dev  | R2 dev bucket |
 | `production` | Fly prod (US/EU) | Vercel prod    | Neon prod (US/EU) | Upstash prod | R2 prod       |
 
-Branch convention (planned):
+Branch convention:
 
-- `main` → production deploys via CI
-- PRs → Vercel preview + Fly preview machine
-- `staging` (optional) → long-running soak environment for sync work
+- `main` → production deploys via CI (deploys are still being wired
+  to Fly + Vercel; CI today verifies lint + typecheck + build + tests).
+- PRs → Vercel preview deployments are auto-created once the project
+  is linked; Fly preview machines are not yet wired up.
+- `staging` (optional) → long-running soak environment for sync work,
+  if/when the multi-region rollout warrants it.
 
 ---
 
